@@ -1,0 +1,142 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500&display=swap");
+@import "@xyflow/react/dist/style.css";
+
+:root {
+	--bg: #eef1f4;
+	--bg-elevated: #f8fafb;
+	--ink: #15202b;
+	--muted: #5c6b7a;
+	--line: #c9d2db;
+	--accent: #0f6e6e;
+	--accent-soft: #d7efef;
+	--danger: #b42318;
+	--danger-soft: #fde8e6;
+	--shadow: 0 10px 30px rgba(21, 32, 43, 0.08);
+	font-family: "DM Sans", sans-serif;
+	line-height: 1.45;
+	font-weight: 400;
+	color: var(--ink);
+	background: var(--bg);
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+	margin: 0;
+	min-height: 100%;
+}
+
+body {
+	min-width: 320px;
+	background:
+		radial-gradient(circle at top left, rgba(15, 110, 110, 0.08), transparent 40%),
+		linear-gradient(180deg, #f4f7f9 0%, var(--bg) 100%);
+}
+
+button,
+input,
+textarea {
+	font: inherit;
+}
+
+button {
+	cursor: pointer;
+}
+
+button:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.app-shell {
+	min-height: 100vh;
+}
+
+.react-flow {
+	width: 100%;
+	height: 100%;
+}
+
+.react-flow__node {
+	visibility: visible !important;
+}
+
+.panel {
+	background: var(--bg-elevated);
+	border: 1px solid var(--line);
+	border-radius: 16px;
+	box-shadow: var(--shadow);
+}
+
+.btn {
+	border: 1px solid transparent;
+	border-radius: 10px;
+	padding: 0.55rem 0.9rem;
+	background: var(--ink);
+	color: white;
+	transition: transform 120ms ease, background 120ms ease;
+}
+
+.btn:hover:not(:disabled) {
+	transform: translateY(-1px);
+}
+
+.btn.secondary {
+	background: white;
+	color: var(--ink);
+	border-color: var(--line);
+}
+
+.btn.ghost {
+	background: transparent;
+	color: var(--ink);
+	border-color: transparent;
+}
+
+.btn.danger {
+	background: var(--danger);
+}
+
+.btn.accent {
+	background: var(--accent);
+}
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+}
+
+.field input,
+.field textarea {
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	padding: 0.65rem 0.8rem;
+	background: white;
+	color: var(--ink);
+}
+
+.field textarea {
+	min-height: 120px;
+	resize: vertical;
+}
+
+.muted {
+	color: var(--muted);
+}
+
+.error-text {
+	color: var(--danger);
+	margin: 0;
+}
+
+.mono {
+	font-family: "IBM Plex Mono", monospace;
+}
