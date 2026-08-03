@@ -64,6 +64,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
   const [body, setBody] = useSyncedDraft(data.body);
   const [editingBody, setEditingBody] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const titleComposingRef = useRef(false);
   const active = selected || data.inCascade || data.activeParent;
 
   useEffect(() => {
@@ -110,11 +111,14 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
       (event.target as HTMLTextAreaElement).blur();
       return;
     }
-    // Titles stay single logical line; Enter opens body.
+    // Titles stay single logical line; Enter opens body (after IME confirms).
     if (event.key === "Enter") {
+      if (event.nativeEvent.isComposing || titleComposingRef.current) return;
       event.preventDefault();
       commitTitle();
-      setEditingBody(true);
+      (event.currentTarget as HTMLTextAreaElement).blur();
+      // Wait for IME to finish on the title field before focusing body.
+      window.setTimeout(() => setEditingBody(true), 0);
     }
   }
 
@@ -154,6 +158,12 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
         onClick={stopMouse}
         onDoubleClick={stopMouse}
         onKeyDown={onTitleKeyDown}
+        onCompositionStart={() => {
+          titleComposingRef.current = true;
+        }}
+        onCompositionEnd={() => {
+          titleComposingRef.current = false;
+        }}
         onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
           setTitle(e.target.value.replace(/\n/g, " "))
         }
