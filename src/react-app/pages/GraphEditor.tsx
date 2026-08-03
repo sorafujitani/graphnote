@@ -1,5 +1,6 @@
 import {
   Background,
+  ConnectionMode,
   Controls,
   MarkerType,
   MiniMap,
@@ -11,6 +12,7 @@ import {
   type NodeChange,
   type OnSelectionChangeParams,
   type ReactFlowInstance,
+  type XYPosition,
 } from "@xyflow/react";
 import {
   startTransition,
@@ -292,6 +294,15 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
     });
   }, []);
 
+  // Generous drop targets mean self-drops and repeats are easy; reject them here
+  // so the drag shows invalid instead of failing on the server (UNIQUE + no self).
+  const isValidConnection = useCallback((connection: Connection | Edge) => {
+    if (connection.source === connection.target) return false;
+    return !edgeRecordsRef.current.some(
+      (edge) => edge.source_id === connection.source && edge.target_id === connection.target,
+    );
+  }, []);
+
   const onConnect = useCallback(
     async (connection: Connection) => {
       if (!connection.source || !connection.target) return;
@@ -317,7 +328,12 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
   }, []);
 
   const onAddNode = useCallback(
-    async (opts?: { parentId?: string; focus?: boolean; requireParent?: boolean }) => {
+    async (opts?: {
+      parentId?: string;
+      focus?: boolean;
+      requireParent?: boolean;
+      at?: XYPosition;
+    }) => {
       if (busyRef.current || creatingChildRef.current) return null;
       creatingChildRef.current = true;
       setBusy(true);
@@ -344,9 +360,11 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
               ),
             )
           : [];
-        const pos = parent
-          ? placeChildPosition(parent, siblingNodes)
-          : { x: 120 + offset, y: 120 + offset };
+        const pos =
+          opts?.at ??
+          (parent
+            ? placeChildPosition(parent, siblingNodes)
+            : { x: 120 + offset, y: 120 + offset });
         const { node } = await api.createNode(graphId, {
           title: "New node",
           x: pos.x,
@@ -906,6 +924,14 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
           tabIndex={0}
           style={{ minHeight: 0, height: "100%", outline: "none" }}
           onMouseDown={() => canvasRef.current?.focus()}
+          // React Flow has no onPaneDoubleClick, hence the target check.
+          onDoubleClick={(event) => {
+            if (!(event.target as HTMLElement).classList.contains("react-flow__pane")) return;
+            void onAddNode({
+              focus: true,
+              at: flowRef.current?.screenToFlowPosition({ x: event.clientX, y: event.clientY }),
+            });
+          }}
         >
           <NoteActionsProvider value={noteActions}>
             <ReactFlow
@@ -914,6 +940,14 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
               nodeTypes={nodeTypes}
               onNodesChange={onNodesChange}
               onConnect={(connection) => void onConnect(connection)}
+              isValidConnection={isValidConnection}
+              // Either port accepts a link, and a near miss still snaps.
+              connectionMode={ConnectionMode.Loose}
+              connectionRadius={45}
+              // Slop so clicking into a note's text never nudges it — and a real
+              // drag suppresses the click that would open the editor.
+              nodeDragThreshold={4}
+              nodeClickDistance={4}
               onNodeDragStop={(event, node) => void onNodeDragStop(event, node)}
               onNodeMouseEnter={(_, node) => {
                 startTransition(() => {
@@ -942,6 +976,8 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
               fitView
               fitViewOptions={{ padding: 0.25 }}
               onlyRenderVisibleElements={false}
+              // A double click opens a note's text instead.
+              zoomOnDoubleClick={false}
               deleteKeyCode={null}
               multiSelectionKeyCode="Shift"
               style={{ width: "100%", height: "100%" }}
@@ -982,13 +1018,25 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
             </p>
           )}
           <p className="muted" style={{ fontSize: "0.78rem", margin: "0 0 0.35rem" }}>
+            Mouse
+          </p>
+          <div
+            className="muted"
+            style={{ fontSize: "0.78rem", lineHeight: 1.7, marginBottom: "1rem" }}
+          >
+            <div>Drag a note · move it</div>
+            <div>Double-click · edit the text</div>
+            <div>Drag a side edge · link notes</div>
+            <div>Double-click the canvas · new note</div>
+          </div>
+          <p className="muted" style={{ fontSize: "0.78rem", margin: "0 0 0.35rem" }}>
             Shortcuts
           </p>
           <div className="muted" style={{ fontSize: "0.78rem", lineHeight: 1.7 }}>
             <div>F / arrows · focus a note</div>
             <div>Tab · linked note</div>
             <div>N · standalone note</div>
-            <div>Enter · title → body</div>
+            <div>Enter · edit · title → body</div>
             <div>Esc / ⌘Enter · save body</div>
             <div>Esc · clear canvas focus</div>
             <div>Shift + arrows · nudge</div>

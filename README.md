@@ -48,6 +48,14 @@ Put the client ID/secret in `.dev.vars` locally and in Wrangler secrets for prod
 
 Each **note** has a **title** (label) and **body** (Markdown). Use **Arrange** (toolbar or `A`) to tidy overlapping notes — spacing accounts for body length.
 
+| Gesture             | Action                                             |
+| ------------------- | -------------------------------------------------- |
+| Drag a note         | Move it — the whole card is the handle             |
+| Click               | Select (keyboard shortcuts stay live)              |
+| Double-click        | Edit the text under the pointer (title or body)    |
+| Drag a note's side  | Link it to another note; drop anywhere on the card |
+| Double-click canvas | New note where you clicked                         |
+
 | Key          | Action                                 |
 | ------------ | -------------------------------------- |
 | `F` / arrows | Focus a note                           |

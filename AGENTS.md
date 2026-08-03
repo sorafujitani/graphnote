@@ -53,3 +53,23 @@ never fail in a DOM shim, so the canvas is tested in real Chromium.
 - `mountEditor` waits until React Flow has measured the notes. Gestures fired
   before that silently do nothing — if a new test is mysteriously inert, check
   that it awaits `mountEditor`.
+
+## The card's gesture contract
+
+Move and type are separate gestures, and the tests are the spec:
+
+- Dragging **anywhere** on the card moves the note. The title and body are
+  `pointer-events: none` until the card holds focus, so the press lands on the
+  card itself.
+- One click selects (canvas shortcuts keep working); a double click opens the
+  text the pointer landed on — above the title's bottom edge is the title,
+  below it is the body. `Enter` does the same from the keyboard.
+- Once a field has focus it behaves like a text field: `nodrag` keeps a
+  selection drag from moving the note.
+- Linking starts from the 20px `.note-port` band down each side of the card, not
+  from the dot. Dropping is card-wide (`.note-drop-zone`) plus
+  `connectionRadius`.
+- React's `onMouseDown` never fires inside a draggable node: d3-drag calls
+  `stopImmediatePropagation` on the press. Use `onClick` (React Flow suppresses
+  the click of a press that travelled past `nodeClickDistance`) or a native
+  capture listener.

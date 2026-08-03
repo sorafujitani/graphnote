@@ -106,11 +106,83 @@ button:disabled {
   stroke: var(--edge) !important;
 }
 
-.react-flow__handle {
-  width: 7px;
-  height: 7px;
-  background: var(--muted);
+/* Grab band down the whole card edge — a 9px dot at mid-height is unaimable.
+   Half outside the card, half over its side padding, so it never covers text. */
+.react-flow__handle.note-port {
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  transform: none;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: crosshair;
+  z-index: 3;
+}
+
+.react-flow__handle.note-port.react-flow__handle-left {
+  left: -10px;
+  right: auto;
+}
+
+.react-flow__handle.note-port.react-flow__handle-right {
+  right: -10px;
+  left: auto;
+}
+
+.react-flow__handle.note-port::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  width: 9px;
+  height: 9px;
+  margin: -5px 0 0 -5px;
   border: 1px solid var(--bg);
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.react-flow__node-note:hover .note-port {
+  background: rgba(96, 165, 250, 0.14);
+}
+
+.react-flow__node-note:hover .note-port::before {
+  background: var(--accent);
+}
+
+.react-flow__handle.note-port:hover {
+  background: rgba(96, 165, 250, 0.28);
+}
+
+.react-flow__handle.note-port:hover::before {
+  width: 11px;
+  height: 11px;
+  margin: -6px 0 0 -6px;
+}
+
+/* Card-sized drop zone. React Flow only enables pointer events on it while a
+   connection is being dragged (.connectionindicator), so editing stays intact. */
+.react-flow__handle.note-drop-zone {
+  inset: 0;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  transform: none;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  z-index: 2;
+}
+
+.react-flow__handle.note-drop-zone:hover {
+  background: rgba(96, 165, 250, 0.14);
+  border-color: var(--accent);
 }
 
 .react-flow__controls {
@@ -218,6 +290,12 @@ button:disabled {
   font-family: "IBM Plex Mono", monospace;
 }
 
+/* Unclipped frame around the card: handles and the parent badge hang outside it. */
+.note-shell {
+  position: relative;
+  width: max-content;
+}
+
 .note-card {
   position: relative;
   box-sizing: border-box;
@@ -231,6 +309,17 @@ button:disabled {
   box-shadow: var(--shadow);
   isolation: isolate;
   overflow: hidden; /* clip only; content wraps — never scroll inside */
+}
+
+/* Drag-first card: a press meant as "move this note" must not land in a text
+   field, so the editors stay inert until the card holds focus. */
+.note-card:not(:focus-within) .note-title-editor,
+.note-card:not(:focus-within) .note-body-preview {
+  pointer-events: none;
+}
+
+.note-card:not(:focus-within) .note-md a {
+  pointer-events: auto;
 }
 
 .note-card.is-active {
@@ -506,4 +595,50 @@ button.linkish {
 .error {
   color: var(--danger);
   margin: 0;
+}
+
+.install-panel {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.install-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.install-lead {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.command-line-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.45rem 0.5rem 0.45rem 0.7rem;
+}
+
+.command-line-row code {
+  flex: 1;
+  font-size: 0.82rem;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.command-line-row .btn {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.78rem;
+  flex: none;
+}
+
+.command-line-hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
 }
