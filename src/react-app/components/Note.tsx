@@ -130,8 +130,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     event.stopPropagation();
     if (event.key === "Escape") {
       event.preventDefault();
-      setBody(data.body);
-      setEditingBody(false);
+      finishBodyEdit();
       return;
     }
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {

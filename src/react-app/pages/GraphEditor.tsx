@@ -988,8 +988,9 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
             <div>F / arrows · focus a note</div>
             <div>Tab · linked note</div>
             <div>N · standalone note</div>
-            <div>Enter · edit · body text</div>
-            <div>Esc · clear focus</div>
+            <div>Enter · title → body</div>
+            <div>Esc / ⌘Enter · save body</div>
+            <div>Esc · clear canvas focus</div>
             <div>Shift + arrows · nudge</div>
             <div>L · connect notes</div>
             <div>C · select branch</div>
