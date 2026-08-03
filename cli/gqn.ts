@@ -14,6 +14,7 @@ import type {
   GraphExport,
   NodeRecord,
 } from "../src/shared/types.js";
+import { placeChildPosition } from "../src/shared/placeChild.js";
 
 type ConfigFile = {
   url?: string;
@@ -359,10 +360,13 @@ async function cmdNodes(args: string[], flags: Flags): Promise<unknown> {
       if (typeof parent === "string" && input.x === undefined && input.y === undefined) {
         const detail = await api<GraphDetail>("GET", `/api/graphs/${graphId}`);
         const parentNode = detail.nodes.find((n: NodeRecord) => n.id === parent);
-        const siblingCount = detail.edges.filter((e: EdgeRecord) => e.source_id === parent).length;
+        const siblings = detail.nodes.filter((n: NodeRecord) =>
+          detail.edges.some((e: EdgeRecord) => e.source_id === parent && e.target_id === n.id),
+        );
         if (parentNode) {
-          input.x = parentNode.x + 280;
-          input.y = parentNode.y + siblingCount * 150;
+          const pos = placeChildPosition(parentNode, siblings);
+          input.x = pos.x;
+          input.y = pos.y;
         }
       }
 

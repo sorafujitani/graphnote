@@ -23,6 +23,7 @@ import {
 } from "react";
 import type { MutableRefObject } from "react";
 import type { EdgeRecord, Graph, NodeRecord } from "../../shared/types";
+import { placeChildPosition } from "../../shared/placeChild";
 import { ApiError, api } from "../api";
 import { Note, type AppNode } from "../components/Note";
 import { NoteActionsProvider, type NoteActions } from "../components/NoteActions";
@@ -336,13 +337,20 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
         }
 
         const offset = nodeRecordsRef.current.length * 24;
-        const siblingCount = parent
-          ? edgeRecordsRef.current.filter((edge) => edge.source_id === parent.id).length
-          : 0;
+        const siblingNodes = parent
+          ? nodeRecordsRef.current.filter((node) =>
+              edgeRecordsRef.current.some(
+                (edge) => edge.source_id === parent.id && edge.target_id === node.id,
+              ),
+            )
+          : [];
+        const pos = parent
+          ? placeChildPosition(parent, siblingNodes)
+          : { x: 120 + offset, y: 120 + offset };
         const { node } = await api.createNode(graphId, {
           title: "New node",
-          x: parent ? parent.x + 280 : 120 + offset,
-          y: parent ? parent.y + siblingCount * 150 : 120 + offset,
+          x: pos.x,
+          y: pos.y,
         });
 
         setNodeRecords((prev) =>
