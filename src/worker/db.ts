@@ -1,3 +1,4 @@
+import { layoutTree } from "../shared/layoutTree";
 import type { CascadeResult, EdgeRecord, Graph, GraphDetail, NodeRecord } from "../shared/types";
 import { computeCascade } from "./cascade";
 
@@ -117,6 +118,34 @@ export async function createNode(
     .run();
   await touchGraph(db, graphId);
   return node;
+}
+
+/** Recompute tidy tree positions for all nodes and persist. */
+export async function formatGraphLayout(
+  db: D1Database,
+  graphId: string,
+): Promise<GraphDetail | null> {
+  const detail = await getGraphDetail(db, graphId);
+  if (!detail) return null;
+  if (detail.nodes.length === 0) return detail;
+
+  const positions = layoutTree(detail.nodes, detail.edges);
+  const ts = nowIso();
+  const statements = detail.nodes.flatMap((node) => {
+    const pos = positions.get(node.id);
+    if (!pos) return [];
+    if (pos.x === node.x && pos.y === node.y) return [];
+    return [
+      db
+        .prepare(`UPDATE nodes SET x = ?, y = ?, updated_at = ? WHERE id = ? AND graph_id = ?`)
+        .bind(pos.x, pos.y, ts, node.id, graphId),
+    ];
+  });
+  if (statements.length > 0) {
+    await db.batch(statements);
+    await touchGraph(db, graphId);
+  }
+  return getGraphDetail(db, graphId);
 }
 
 export async function updateNode(

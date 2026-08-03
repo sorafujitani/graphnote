@@ -35,7 +35,8 @@ gqn whoami   # if unauthorized → gqn login (password from env/config; never ec
 | Health  | `gqn health`                                                |
 | Auth    | `gqn login` · `gqn logout` · `gqn whoami`                   |
 | Config  | `gqn config show` · `set-url` · `set-password`              |
-| Graphs  | `gqn graphs list\|create\|get\|rename\|delete\|export`      |
+| Graphs  | `gqn graphs list\|create\|get\|rename\|delete\|export\|fmt` |
+| Fmt     | `gqn fmt <graphId>` · `gqn graphs fmt <graphId>`            |
 | Nodes   | `gqn nodes create\|update\|delete`                          |
 | Edges   | `gqn edges create\|delete`                                  |
 | Cascade | `gqn cascade <graphId> <nodeId...> [--mode outgoing\|both]` |
@@ -65,6 +66,12 @@ Update / delete:
 gqn nodes update <graphId> <nodeId> --title 'New' --body '**bold**'
 gqn nodes delete <graphId> <nodeId> --cascade   # only if user asked
 gqn graphs delete <graphId>                     # only if user asked
+```
+
+Tidy tree layout (persist `x`/`y`; same as UI **Fmt** / `A`):
+
+```bash
+gqn fmt <graphId>
 ```
 
 ## Rules

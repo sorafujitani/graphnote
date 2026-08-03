@@ -310,6 +310,7 @@ Graphs:
   gqn graphs rename <graphId> <title>
   gqn graphs delete <graphId>
   gqn graphs export <graphId>
+  gqn graphs fmt <graphId>
 
 Nodes:
   gqn nodes create <graphId> [--title T] [--body B] [--x N] [--y N] [--parent <nodeId>]
@@ -322,6 +323,7 @@ Edges:
 
 Other:
   gqn cascade <graphId> <nodeId...> [--mode outgoing|both]
+  gqn fmt <graphId>
   gqn health
 
 Examples:
@@ -371,8 +373,14 @@ async function cmdGraphs(args: string[], flags: Flags): Promise<unknown> {
       if (!id) fail("usage: gqn graphs export <graphId>");
       return api<{ export: GraphExport; r2Key: string }>("POST", `/api/graphs/${id}/export`);
     }
+    case "fmt":
+    case "format": {
+      const id = rest[0];
+      if (!id) fail("usage: gqn graphs fmt <graphId>");
+      return api<GraphDetail>("POST", `/api/graphs/${id}/fmt`);
+    }
     default:
-      fail("usage: gqn graphs <list|create|get|rename|delete|export>");
+      fail("usage: gqn graphs <list|create|get|rename|delete|export|fmt>");
   }
 }
 
@@ -599,6 +607,13 @@ async function main(): Promise<void> {
         print(
           await api<{ export: GraphExport; r2Key: string }>("POST", `/api/graphs/${id}/export`),
         );
+        return;
+      }
+      case "fmt":
+      case "format": {
+        const id = cmdArgs[0];
+        if (!id) fail("usage: gqn fmt <graphId>");
+        print(await api<GraphDetail>("POST", `/api/graphs/${id}/fmt`));
         return;
       }
       default:

@@ -92,6 +92,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ nodeIds, mode }),
     }),
+  formatGraph: (graphId: string) =>
+    request<GraphDetail>(`/api/graphs/${graphId}/fmt`, { method: "POST" }),
   exportGraph: (graphId: string) =>
     request<{ export: GraphExport; r2Key: string }>(`/api/graphs/${graphId}/export`, {
       method: "POST",

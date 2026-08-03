@@ -17,6 +17,7 @@ import {
   deleteEdge,
   deleteGraph,
   deleteNodes,
+  formatGraphLayout,
   getGraphDetail,
   listGraphs,
   renameGraph,
@@ -146,6 +147,12 @@ api.post("/graphs/:graphId/cascade-select", async (c) => {
   return c.json(
     await cascadeSelect(c.env.DB, c.req.param("graphId"), body.nodeIds, body.mode ?? "outgoing"),
   );
+});
+
+api.post("/graphs/:graphId/fmt", async (c) => {
+  const detail = await formatGraphLayout(c.env.DB, c.req.param("graphId"));
+  if (!detail) return c.json({ error: "not found" }, 404);
+  return c.json(detail);
 });
 
 api.post("/graphs/:graphId/export", async (c) => {

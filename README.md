@@ -79,10 +79,11 @@ Source: `cli/gqn.ts` · wrapper: `bin/gqn` · bundle: `dist/cli/gqn.js`.
 
 ### Agent skills
 
-| Skill                                           | Role                                                         |
-| ----------------------------------------------- | ------------------------------------------------------------ |
-| [`skills/gqn`](skills/gqn/SKILL.md)             | Operate graphnote via `gqn`                                  |
-| [`skills/gqn-teach`](skills/gqn-teach/SKILL.md) | URL / text → hierarchical teach graph (structure over prose) |
+| Skill                                                           | Role                                                                      |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| [`skills/gqn`](skills/gqn/SKILL.md)                             | Operate graphnote via `gqn`                                               |
+| [`skills/gqn-teach`](skills/gqn-teach/SKILL.md)                 | URL / text → teach graph (plain labels, structure over prose)             |
+| [`skills/gqn-node-refactor`](skills/gqn-node-refactor/SKILL.md) | Rebalance layout: short edges, cluster subtrees, kill long vertical rails |
 
 Linked into `~/.agents/skills/`, `~/.cursor/skills/`, and `.cursor/skills/`.
 

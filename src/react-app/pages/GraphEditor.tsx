@@ -57,7 +57,8 @@ function toFlowEdges(
       label: edge.label || undefined,
       selected: selectedEdgeIds.has(edge.id),
       animated: false,
-      type: "smoothstep",
+      // Bezier avoids smoothstep's shared vertical "rails" when siblings fan out.
+      type: "default",
       style: {
         stroke: hot ? "#60a5fa" : "#64748b",
         strokeWidth: hot ? 1.5 : 1,
@@ -499,6 +500,30 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
     }
   }, [graphId]);
 
+  const onFmt = useCallback(async () => {
+    if (nodeRecordsRef.current.length === 0 || busyRef.current) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const detail = await api.formatGraph(graphId);
+      const byId = new Map(detail.nodes.map((node) => [node.id, node]));
+      setNodeRecords(detail.nodes);
+      setNodes((prev) =>
+        prev.map((node) => {
+          const record = byId.get(node.id);
+          return record ? { ...node, position: { x: record.x, y: record.y } } : node;
+        }),
+      );
+      revealNodes();
+      await waitFrames(2);
+      updateInternalsRef.current?.(detail.nodes.map((node) => node.id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "fmt failed");
+    } finally {
+      setBusy(false);
+    }
+  }, [graphId, revealNodes]);
+
   const nudgeSelected = useCallback(
     async (dx: number, dy: number) => {
       const ids = selectedNodeIdsRef.current;
@@ -655,6 +680,12 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
     if ((key === "e" && mod) || (key === "e" && event.shiftKey)) {
       event.preventDefault();
       void onExport();
+      return;
+    }
+
+    if (key === "a" && !mod) {
+      event.preventDefault();
+      void onFmt();
       return;
     }
 
@@ -831,6 +862,15 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
           Cascade delete
         </button>
         <button
+          className="btn secondary"
+          type="button"
+          disabled={busy || nodeRecords.length === 0}
+          onClick={() => void onFmt()}
+          title="A"
+        >
+          Fmt
+        </button>
+        <button
           className="btn accent"
           type="button"
           disabled={busy}
@@ -886,7 +926,7 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
                 });
               }}
               defaultEdgeOptions={{
-                type: "smoothstep",
+                type: "default",
                 style: { stroke: "#64748b", strokeWidth: 1 },
                 markerEnd: EDGE_MARKER,
               }}
@@ -942,6 +982,7 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
             <div>L · link nodes</div>
             <div>C · cascade select</div>
             <div>⌫ / ⇧⌫ · delete</div>
+            <div>A · fmt tree</div>
             <div>⌘E · export</div>
             <div>⌘[ · notes list</div>
           </div>
