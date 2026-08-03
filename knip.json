@@ -1,10 +1,4 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreDependencies": [
-    "oxlint-tsgolint",
-    "@types/babel__core",
-    "lefthook",
-    "@testing-library/react",
-    "@testing-library/dom"
-  ]
+  "ignoreDependencies": ["@testing-library/react"]
 }

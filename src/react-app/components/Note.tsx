@@ -4,15 +4,16 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ComponentPropsWithoutRef,
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
-import Markdown from "react-markdown";
+import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useSyncedDraft } from "../lib/useSyncedDraft";
 import { useNoteActions } from "./NoteActions";
 
-export type NoteData = {
+type NoteData = {
   title: string;
   body: string;
   inCascade?: boolean;
@@ -26,6 +27,36 @@ export type AppNode = Node<NoteData, "note">;
 function stopMouse(event: MouseEvent) {
   event.stopPropagation();
 }
+
+function MarkdownLink({ href, children }: ComponentPropsWithoutRef<"a">) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {children}
+    </a>
+  );
+}
+
+function MarkdownInput(props: ComponentPropsWithoutRef<"input">) {
+  return (
+    <input
+      {...props}
+      disabled
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    />
+  );
+}
+
+const markdownComponents: Components = {
+  a: MarkdownLink,
+  input: MarkdownInput,
+};
 
 export function Note({ id, data, selected }: NodeProps<AppNode>) {
   const { onChange, onRequestChild } = useNoteActions();
@@ -198,30 +229,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
         >
           {body.trim() ? (
             <div className="note-md">
-              <Markdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  a: ({ href, children }) => (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      onMouseDown={(event) => event.stopPropagation()}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      {children}
-                    </a>
-                  ),
-                  input: (props) => (
-                    <input
-                      {...props}
-                      disabled
-                      onMouseDown={(event) => event.stopPropagation()}
-                      onClick={(event) => event.stopPropagation()}
-                    />
-                  ),
-                }}
-              >
+              <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {body}
               </Markdown>
             </div>
