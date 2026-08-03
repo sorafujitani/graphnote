@@ -98,7 +98,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     onRequestChild(id);
   }
 
-  function onTitleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function onTitleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Tab" && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
       requestChild(event);
       return;
@@ -107,9 +107,10 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     if (event.key === "Escape") {
       event.preventDefault();
       setTitle(data.title);
-      (event.target as HTMLInputElement).blur();
+      (event.target as HTMLTextAreaElement).blur();
       return;
     }
+    // Titles stay single logical line; Enter opens body.
     if (event.key === "Enter") {
       event.preventDefault();
       commitTitle();
@@ -137,65 +138,26 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
 
   return (
     <div
-      style={{
-        position: "relative",
-        minWidth: 220,
-        width: 260,
-        background: active ? "var(--node-bg-active)" : "var(--node-bg)",
-        border: `1px solid ${active ? "var(--accent)" : "var(--line)"}`,
-        borderRadius: 12,
-        padding: "0.65rem 0.75rem",
-        boxShadow: "var(--shadow)",
-        isolation: "isolate",
-        outline: data.activeParent && !selected ? "1px dashed var(--accent)" : "none",
-        outlineOffset: 3,
-      }}
+      className={`note-card${active ? " is-active" : ""}${data.activeParent && !selected ? " is-parent" : ""}`}
     >
-      {data.activeParent ? (
-        <div
-          className="mono"
-          style={{
-            position: "absolute",
-            top: -22,
-            right: 0,
-            fontSize: "0.68rem",
-            color: "var(--accent)",
-            background: "var(--bg-elevated)",
-            border: "1px solid var(--line)",
-            borderRadius: 6,
-            padding: "0.1rem 0.35rem",
-            pointerEvents: "none",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Tab · child
-        </div>
-      ) : null}
+      {data.activeParent ? <div className="note-parent-badge mono">Tab · child</div> : null}
       <Handle type="target" position={Position.Left} />
-      <input
-        className="nodrag nopan"
+      <textarea
+        className="nodrag nopan note-title-editor"
         data-node-id={id}
         data-node-field="title"
         value={title}
         placeholder="Untitled"
         aria-label={`Title for node ${id}`}
+        rows={1}
         onMouseDown={stopMouse}
         onClick={stopMouse}
         onDoubleClick={stopMouse}
         onKeyDown={onTitleKeyDown}
-        onChange={(e: ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+          setTitle(e.target.value.replace(/\n/g, " "))
+        }
         onBlur={commitTitle}
-        style={{
-          width: "100%",
-          border: "none",
-          outline: "none",
-          background: "transparent",
-          fontWeight: 600,
-          fontSize: "0.95rem",
-          color: "var(--ink)",
-          padding: 0,
-          marginBottom: 6,
-        }}
       />
       {editingBody ? (
         <textarea
@@ -206,7 +168,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
           value={body}
           placeholder="Write markdown…"
           aria-label={`Markdown body for node ${id}`}
-          rows={5}
+          rows={3}
           onMouseDown={stopMouse}
           onClick={stopMouse}
           onDoubleClick={stopMouse}

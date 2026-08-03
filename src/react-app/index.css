@@ -81,6 +81,8 @@ button:disabled {
 .react-flow__node-note {
   /* opaque card lives inside; keep RF wrapper from tinting through */
   isolation: isolate;
+  /* long wrapped titles/URLs must not be clipped into a scrollport */
+  overflow: visible !important;
 }
 
 .react-flow__edges {
@@ -216,9 +218,75 @@ button:disabled {
   font-family: "IBM Plex Mono", monospace;
 }
 
+.note-card {
+  position: relative;
+  box-sizing: border-box;
+  width: 280px;
+  max-width: 320px;
+  min-width: 200px;
+  background: var(--node-bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+  box-shadow: var(--shadow);
+  isolation: isolate;
+  overflow: hidden; /* clip only; content wraps — never scroll inside */
+}
+
+.note-card.is-active {
+  background: var(--node-bg-active);
+  border-color: var(--accent);
+}
+
+.note-card.is-parent {
+  outline: 1px dashed var(--accent);
+  outline-offset: 3px;
+}
+
+.note-parent-badge {
+  position: absolute;
+  top: -22px;
+  right: 0;
+  font-size: 0.68rem;
+  color: var(--accent);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.1rem 0.35rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.note-title-editor,
+.note-body-editor {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  field-sizing: content;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.note-title-editor {
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: var(--ink);
+  margin-bottom: 6px;
+  min-height: 1.35em;
+}
+
 .note-body-preview {
   display: block;
   width: 100%;
+  max-width: 100%;
   margin: 0;
   padding: 0;
   border: none;
@@ -227,8 +295,11 @@ button:disabled {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.45;
-  min-height: 3.6em;
+  min-height: 2.8em;
   cursor: text;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .note-body-placeholder {
@@ -237,22 +308,18 @@ button:disabled {
 }
 
 .note-body-editor {
-  width: 100%;
-  border: none;
-  outline: none;
-  resize: none;
-  background: transparent;
   font-size: 0.82rem;
   line-height: 1.45;
   color: var(--muted);
-  padding: 0;
-  display: block;
   font-family: "IBM Plex Mono", monospace;
+  min-height: 4.2em;
 }
 
 .note-md {
   color: var(--muted);
   overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .note-md > :first-child {
@@ -285,6 +352,12 @@ button:disabled {
 .note-md ul,
 .note-md ol {
   padding-left: 1.2em;
+  max-width: 100%;
+}
+
+.note-md li {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .note-md li + li {
@@ -299,6 +372,9 @@ button:disabled {
   border-radius: 4px;
   padding: 0.05em 0.3em;
   color: var(--ink);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  white-space: pre-wrap;
 }
 
 .note-md pre {
@@ -306,7 +382,11 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0.45em 0.55em;
-  overflow-x: auto;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .note-md pre code {
@@ -320,6 +400,8 @@ button:disabled {
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .note-md blockquote {
