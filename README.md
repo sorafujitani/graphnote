@@ -6,9 +6,11 @@ Personal **graph notes** — ideas as nodes and edges, not long documents.
 - **API:** Hono on Cloudflare Workers
 - **Store:** D1 (`graphs` / `nodes` / `edges`) · export to JSON + R2
 - **Auth:** shared password (cookie session)
-- **CLI:** `gqn` · agent skills `gqn` / `gqn-teach`
+- **CLI:** `gqn` · agent skills `gqn` / `gqn-teach` / `gqn-node-refactor`
 
 Live: https://graphnote.fujitanisora0414.workers.dev
+
+Deep links: `/g/<graphId>` opens that note (reload stays on the editor).
 
 ## Quick start
 
@@ -27,7 +29,9 @@ Default local password in `.env.example`: `changeme`.
 
 ## Editor
 
-Node **title** is the main label. **Body** is Markdown (GFM): click to edit source, blur / ⌘Enter to preview.
+Node **title** is the main label. **Body** is Markdown (GFM): click to edit source, blur / ⌘Enter to preview. Use short cues and official doc links in the body when that helps.
+
+**Fmt** (toolbar or `A`) runs a left-to-right tidy tree layout and persists `x`/`y` (same as `gqn fmt`).
 
 | Key          | Action                                               |
 | ------------ | ---------------------------------------------------- |
@@ -39,6 +43,7 @@ Node **title** is the main label. **Body** is Markdown (GFM): click to edit sour
 | `C`          | Cascade-select outgoing                              |
 | `⌫` / `⇧⌫`   | Delete / cascade delete                              |
 | `⇧↑↓←→`      | Nudge selection                                      |
+| `A`          | Fmt — tidy tree layout                               |
 | `⌘E`         | Export                                               |
 | `⌘[`         | Back to notes list                                   |
 | `Esc`        | Clear focus / cancel cascade / link                  |
@@ -72,6 +77,7 @@ gqn graphs list
 gqn graphs create 'Topic'
 gqn nodes create <graphId> --title 'Root' --x 120 --y 120
 gqn nodes create <graphId> --title 'Child' --parent <rootId> --body '## note'
+gqn fmt <graphId>               # tidy tree layout (also: gqn graphs fmt)
 gqn graphs get <graphId>
 ```
 
@@ -79,18 +85,23 @@ Source: `cli/gqn.ts` · wrapper: `bin/gqn` · bundle: `dist/cli/gqn.js`.
 
 ### Agent skills
 
-| Skill                                                           | Role                                                                      |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| [`skills/gqn`](skills/gqn/SKILL.md)                             | Operate graphnote via `gqn`                                               |
-| [`skills/gqn-teach`](skills/gqn-teach/SKILL.md)                 | URL / text → teach graph (plain labels, structure over prose)             |
-| [`skills/gqn-node-refactor`](skills/gqn-node-refactor/SKILL.md) | Rebalance layout: short edges, cluster subtrees, kill long vertical rails |
+| Skill                                                           | Role                                                                                           |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [`skills/gqn`](skills/gqn/SKILL.md)                             | Operate graphnote via `gqn`                                                                    |
+| [`skills/gqn-teach`](skills/gqn-teach/SKILL.md)                 | URL / text → teach graph: abstract→concrete levels, compact bush, cues + official doc links    |
+| [`skills/gqn-node-refactor`](skills/gqn-node-refactor/SKILL.md) | Rebalance layout / hierarchy when edges stretch or structure is wrong (prefer `gqn fmt` first) |
 
 Linked into `~/.agents/skills/`, `~/.cursor/skills/`, and `.cursor/skills/`.
 
 ## Deploy
 
+Build the client, then deploy (assets come from `vite build`):
+
 ```bash
-pnpm deploy    # remote D1 migrate + wrangler deploy
+pnpm exec vite build
+pnpm run db:migrate:remote
+pnpm exec wrangler deploy
+# or: pnpm deploy   # migrate + wrangler (run vite build first)
 ```
 
 Secrets on Workers: `APP_PASSWORD`, `SESSION_SECRET`.

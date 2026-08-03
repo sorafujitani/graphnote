@@ -4,24 +4,23 @@ description: >-
   Turn a URL or source text into a hierarchical graphnote via gqn: decompose
   concepts into parent/child nodes so the graph itself teaches structure. Use when
   the user says teach, explain as a graph, structure this article/link, gqn-teach,
-  or wants a concept map instead of prose notes. Prefer plain wording; avoid
-  metaphorical Japanese titles.
+  or wants a concept map instead of prose notes. Judge abstract→concrete levels
+  carefully so the graph stays compact (not a tall rail or a long chain). Prefer
+  plain wording; put short cues and official doc links in bodies when helpful.
 ---
 
 # gqn-teach
 
-Build a **teachable graph** from a link or passage. Understanding comes from
-**hierarchy and edges**, not from reading long node bodies.
+Build a **teachable graph** from a link or passage. Structure is taught by
+**hierarchy and edges**; node bodies add **short cues and official links** so the
+user can verify and go deeper without reading an essay on the canvas.
+
+**Shape matters as much as labels.** A correct abstract→concrete split keeps the
+canvas readable; over-split makes a long horizontal chain or a tall vertical fan.
 
 Also follow the `gqn` skill for CLI auth/targets (`--prod` / `--local`).
-After creating a large graph, run **`gqn-node-refactor`** if edges look stretched.
-
-## Goal
-
-- Graph title = topic (short, plain).
-- Nodes = named elements (concept, part, step, actor, invariant…).
-- Edges (parent→child) = “contains / decomposes into / leads to”.
-- A glance at the canvas should show structure; bodies only hold compact cues.
+After creating a large graph, run **`gqn fmt <graphId>`** (or **`gqn-node-refactor`**
+if fmt is not enough).
 
 ## Language (titles & short body labels)
 
@@ -47,73 +46,161 @@ Bad → Good:
 | 差分の海             | 巨大な差分                        |
 | レビューの旅         | レビュー手順                      |
 
+## Goal
+
+- Graph title = topic (short, plain).
+- Nodes = named elements (concept, part, step, actor, invariant…).
+- Edges (parent→child) = “contains / decomposes into / leads to”.
+- Canvas glance shows structure; bodies hold **compact understanding aids** (definition fragment, command, constraint, official URL).
+
 ## Anti-patterns (do not)
 
-- Essay paragraphs in `--body`
+- Essay paragraphs in `--body` (no “In this section…”, no pasted article)
 - One giant root with a wall of markdown
-- Restating the source article inside nodes
+- Restating the whole source article inside nodes
 - Orphan nodes with no parent link (except the single root)
 - Metaphorical / catchy Japanese titles (see Language)
-- Creating all children with default auto-y so one parent sits far above a long vertical “rail” of edges — place siblings with explicit `--x`/`--y` near the parent, or refactor afterward
+- Leaving every body empty when official docs or a 1-line cue would unlock the node
+- Invented / guessed documentation URLs (only real, verified links)
+- Creating all children with default auto-y so one parent sits far above a long vertical “rail” of edges — place siblings with explicit `--x`/`--y` near the parent, or `gqn fmt` afterward
+- **Over-depth** (abstract→concrete→ultra-detail→flag→option…) as a left-to-right snake
+- **Over-breadth** (10+ siblings under one parent) as a tall stack — regroup or facet instead
+- Fake mid-level nodes that only restate the parent (“詳細”, “ポイント”, “概要”) without a real partition
+
+## Abstract → concrete (judge before creating nodes)
+
+Each edge parent→child must drop **exactly one abstraction level**. Wrong level = wrong shape.
+
+| Level    | What belongs here                                                          | Examples                           |
+| -------- | -------------------------------------------------------------------------- | ---------------------------------- |
+| L0 topic | One subject of the graph                                                   | `gh stack`, `D1`, `rebase`         |
+| L1 facet | Mutually exclusive **partitions** of the topic (kinds / phases / surfaces) | `コマンド`, `レビュー流れ`, `制約` |
+| L2 unit  | Named element under a facet (one idea the user can point at)               | `sync`, `巨大PRはレビューしづらい` |
+| L3 cue   | Only if L2 is still a bundle of distinct ideas                             | specific flag, error, invariant    |
+
+**Child test (all should pass):**
+
+1. **Partition** — siblings under the same parent answer the _same question_ about the parent (kinds? steps? parts?). Mixing “commands + philosophy + troubleshooting” under one parent = wrong; make separate L1 facets.
+2. **Strict more-concrete** — child is a _kind / part / step / property_ of the parent, not a peer synonym and not a whole other topic.
+3. **Necessary** — deleting the child loses a distinct idea; if it only restates the parent title, merge into parent `body` instead of a node.
+4. **Stop depth** — if the next split is only a command, URL, or 1-line definition, put it in **`body`**, do not add another column.
+
+**Do not split when:**
+
+- Title already names one atomic idea → body only
+- “Children” would be synonyms / rephrasings of the parent
+- Next level is documentation chrome (TOC leftovers, “Introduction”, “Summary”)
+- You are about to exceed **shape budget** (below) — regroup or start another graph
+
+**Do split when:**
+
+- Parent bundles 2+ ideas that a learner must see as separate
+- Siblings would clarify contrast (A vs B) or ordered stages
+- One facet is large enough to deserve its own L1 column
+
+## Shape budget (anti-stretch)
+
+Left→right = depth. Up→down = siblings. Both must stay compact **before** `fmt`.
+
+| Constraint                | Target                            | If exceeded                                              |
+| ------------------------- | --------------------------------- | -------------------------------------------------------- |
+| Depth (root→leaf columns) | **2–3** edges (L0→L1→L2; L3 rare) | Collapse detail into `body`; drop fake mid-levels        |
+| Children per parent       | **2–6** (hard max ~7)             | Add an L1 grouping node, or **facet into another graph** |
+| Total nodes               | **8–20** typical (ask before >25) | Index graph of facet titles, or one graph per facet      |
+| Top-level (L1) facets     | **3–6**                           | Merge thin facets; split a second graph for leftovers    |
+
+Prefer **balanced bush**: a few L1 columns, each with a short sibling stack — not a deep chain and not one parent with a dozen leaves.
+
+`fmt` only packs what you created; it cannot fix a wrong abstract/concrete tree.
 
 ## Node content rules
 
-| Field   | Rule                                                                                                           |
-| ------- | -------------------------------------------------------------------------------------------------------------- |
-| `title` | Plain noun/verb phrase, ≤ ~40 chars. The title _is_ the explanation.                                           |
-| `body`  | Optional. Bullets / labels only. Prefer empty. Max ~5 short lines.                                             |
-| layout  | Root left; each subtree in its own vertical band; siblings near their parent (`Δx≈280`, `Δy≈150` per sibling). |
+| Field   | Rule                                                                                                                    |
+| ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `title` | Plain noun/verb phrase, ≤ ~40 chars. Primary label on the canvas.                                                       |
+| `body`  | Short Markdown cues that help the user _understand or verify_. Max ~5 short lines. Empty only when the title is enough. |
+| layout  | Root left; each subtree in its own vertical band; siblings near their parent (`Δx≈280`, `Δy≈150` per sibling).          |
 
-Body ok: `- O(n log n)`, `- gh stack init`.  
-Body bad: multi-paragraph summaries.
+### When to fill `body`
+
+Fill when at least one of these is true:
+
+1. **Official / primary docs** exist for the concept (API, CLI, RFCs, product docs).
+2. Title alone is ambiguous (same word, different meaning) — add a 1-line plain definition.
+3. A concrete cue helps recall: command, flag, formula, error code, version pin.
+4. The source URL is the topic itself — put it on the **root** (and section nodes that map to headings with stable anchors, when useful).
+
+Leave empty for pure structural grouping nodes (“手順”, “比較”) where children carry the meaning.
+
+### Official links (preferred in body)
+
+- Prefer **canonical docs** over blogs/tweets/mirrors (e.g. vendor docs, `*.github.io` project docs, MDN, RFCs).
+- Use Markdown links (UI renders GFM). Label = short plain name, not the raw URL alone when the host is obscure.
+- One primary link per node is enough; add a second only if it is a distinct official surface (e.g. reference + tutorial).
+- If the user gave a source URL, keep it; still add official docs when the source is secondary commentary.
+
+Body patterns (good):
+
+```markdown
+- 兄弟コミットを並べた履歴として扱う
+- [About GitHub CLI](https://docs.github.com/en/github-cli)
+```
+
+```markdown
+- `git rebase --update-refs`
+- [git-rebase](https://git-scm.com/docs/git-rebase)
+```
+
+```markdown
+- 公式: [Cloudflare D1](https://developers.cloudflare.com/d1/)
+```
+
+Body bad: multi-paragraph summaries; link dumps without a cue; unofficial SEO scrapes.
 
 ## Workflow
 
-1. **Ingest** — URL or text. Extract structure; do not dump source into nodes.
-2. **Outline** — 1 root, 2–7 top-level children, recurse only when useful. Prefer shallow & wide.
-3. **Wording pass** — rewrite every planned title into plain language (Language section).
-4. **Auth** — `gqn whoami` / `gqn --prod whoami`; login if needed. Never print passwords.
-5. **Create graph + root**
+1. **Ingest** — URL or text. Extract candidate ideas; note **official doc URLs**. Do not dump source into nodes.
+2. **Level map** — assign each idea to L0/L1/L2/(L3). Drop TOC chrome. Merge synonyms. Apply **Child test** and **Shape budget** on paper first.
+3. **Outline** — 1 root → 3–6 L1 facets → 2–5 L2 units each. Recurse to L3 only when Child test still demands a node. Prefer a balanced bush over deep or wide extremes.
+4. **Wording pass** — rewrite every planned title into plain language (Language section).
+5. **Body pass** — for each leaf / key concept: 0–2 bullets (cue) + official link when available. Anything that failed “necessary as a node” goes here. Skip structural-only nodes.
+6. **Auth** — `gqn whoami` / `gqn --prod whoami`; login if needed. Never print passwords.
+7. **Create graph + root** (root body: source URL and/or primary official overview)
 
 ```bash
 gqn --prod graphs create '<Topic>'
-gqn --prod nodes create <graphId> --title '<Topic>' --x 80 --y 400
+gqn --prod nodes create <graphId> --title '<Topic>' --x 80 --y 400 --body $'- [source](<url>)\n- [docs](<official>)'
 ```
 
-6. **Create children** — prefer `--parent` **and** explicit coordinates so each section’s children sit beside that section (not one global vertical stack):
+8. **Create children** — prefer `--parent` **and** explicit coordinates so each facet’s children sit in that facet’s band:
 
 ```bash
-# section i at y = 80 + i*180 ; its children at x+280, y + j*140
-gqn --prod nodes create <graphId> --title '<Section>' --parent <rootId> --x 360 --y 80
-gqn --prod nodes create <graphId> --title '<Detail>' --parent <sectionId> --x 640 --y 80 --body $'- fact'
+# L1 facet i at y = 80 + i*180 ; its L2 at x+280, y + j*140
+gqn --prod nodes create <graphId> --title '<Facet>' --parent <rootId> --x 360 --y 80
+gqn --prod nodes create <graphId> --title '<Unit>' --parent <facetId> --x 640 --y 80 \
+  --body $'- plain cue\n- [official name](https://example.com/docs/...)'
 ```
 
-7. **Cross-links** only when hierarchy is not enough:
+9. **Cross-links** only when hierarchy is not enough (shared dependency / contrast). Do not use cross-links to fake a missing L1 facet.
 
 ```bash
 gqn --prod edges create <graphId> <sourceId> <targetId> --label 'depends'
 ```
 
-8. **Verify** — `gqn --prod graphs get <graphId>`. If long diagonal/vertical edges or bunched siblings: invoke **`gqn-node-refactor`**.
-9. Report graph id + open URL. Do not paste a prose retelling.
+10. **Verify structure then layout** — `gqn --prod graphs get <graphId>`:
+    - depth ≤ 3 edges; no parent with >7 children; no filler mid-nodes
+    - bodies/links look right
+    - then `gqn --prod fmt <graphId>` (or **`gqn-node-refactor`** if topology is wrong, not just positions)
+11. Report graph id + open URL + shape one-liner (depth × facets × approx nodes). No essay retelling.
 
-## Decomposition heuristics
+## Decomposition heuristics (by source type)
 
-- **Article** → root = topic; children = sections; grandchildren = concrete points.
-- **System** → components → inputs / outputs / invariants.
-- **Process** → ordered stages (plain stage names).
-- **Comparison** → options → pros / cons / when.
-- **Code / bug** → symptom → causes / surfaces / fix.
+Always run **Abstract → concrete** first; these only suggest L1 facet _kinds_.
 
-Stop when titles are already atomic.
+- **Article** → L1 = real sections/claims (skip intro/outro fluff); L2 = concrete points; extras in body.
+- **System** → L1 = components _or_ surfaces (pick one partition axis); under each: inputs / outputs / invariants as L2 only if distinct.
+- **Process** → L1 = ordered stages (≤6); stage details in body unless a stage itself has named substeps.
+- **Comparison** → L1 = options; L2 = pros / cons / when (shared criteria as cross-links or a small “基準” facet — not duplicated under every option).
+- **Code / bug** → L1 = symptom / causes / fix (or surfaces); keep depth short; commands & links in body.
 
-## Size budget
-
-- Typical: **8–25 nodes**. Ask before going much larger.
-- Huge source → one graph per facet, or an index root of facet titles only.
-
-## Output to user
-
-- Graph title + `graphId`
-- 1–2 lines on shape only (e.g. “6 sections → each has 1–3 detail nodes”)
-- No essay summary of the source
+Stop when titles are atomic **or** Shape budget would break — then facet graphs, don’t deepen.
