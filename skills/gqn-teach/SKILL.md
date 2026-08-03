@@ -6,14 +6,16 @@ description: >-
   the user says teach, explain as a graph, structure this article/link, gqn-teach,
   or wants a concept map instead of prose notes. Judge abstract→concrete levels
   carefully so the graph stays compact (not a tall rail or a long chain). Prefer
-  plain wording; put short cues and official doc links in bodies when helpful.
+  plain wording; put short cues, verified official doc links, and minimal examples
+  in bodies when they materially improve understanding, without making cards long.
 ---
 
 # gqn-teach
 
 Build a **teachable graph** from a link or passage. Structure is taught by
-**hierarchy and edges**; node bodies add **short cues and official links** so the
-user can verify and go deeper without reading an essay on the canvas.
+**hierarchy and edges**; node bodies add **short cues, official links, and tiny
+examples** so the user can understand, verify, and try the idea without reading
+an essay on the canvas.
 
 **Shape matters as much as labels.** A correct abstract→concrete split keeps the
 canvas readable; over-split makes a long horizontal chain or a tall vertical fan.
@@ -51,7 +53,7 @@ Bad → Good:
 - Graph title = topic (short, plain).
 - Nodes = named elements (concept, part, step, actor, invariant…).
 - Edges (parent→child) = “contains / decomposes into / leads to”.
-- Canvas glance shows structure; bodies hold **compact understanding aids** (definition fragment, command, constraint, official URL).
+- Canvas glance shows structure; bodies hold **compact understanding aids** (definition fragment, command, constraint, official URL, minimal example).
 
 ## Anti-patterns (do not)
 
@@ -62,6 +64,8 @@ Bad → Good:
 - Metaphorical / catchy Japanese titles (see Language)
 - Leaving every body empty when official docs or a 1-line cue would unlock the node
 - Invented / guessed documentation URLs (only real, verified links)
+- Pasting documentation prose or its full sample into a body; summarize it and write the smallest example that teaches this node
+- Putting multiple variants, setup boilerplate, and expected output in one card until it becomes a mini article
 - Creating all children with default auto-y so one parent sits far above a long vertical “rail” of edges — place siblings with explicit `--x`/`--y` near the parent, or `gqn fmt` afterward
 - **Over-depth** (abstract→concrete→ultra-detail→flag→option…) as a left-to-right snake
 - **Over-breadth** (10+ siblings under one parent) as a tall stack — regroup or facet instead
@@ -115,11 +119,11 @@ Prefer **balanced bush**: a few L1 columns, each with a short sibling stack — 
 
 ## Node content rules
 
-| Field   | Rule                                                                                                                    |
-| ------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `title` | Plain noun/verb phrase, ≤ ~40 chars. Primary label on the canvas.                                                       |
-| `body`  | Short Markdown cues that help the user _understand or verify_. Max ~5 short lines. Empty only when the title is enough. |
-| layout  | Root left; each subtree in its own vertical band; siblings near their parent (`Δx≈280`, `Δy≈150` per sibling).          |
+| Field   | Rule                                                                                                                                                                     |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `title` | Plain noun/verb phrase, ≤ ~40 chars. Primary label on the canvas.                                                                                                        |
+| `body`  | Short Markdown cues that help the user _understand, verify, or try_. Usually 2–8 visual lines; one link and/or one tiny code block. Empty only when the title is enough. |
+| layout  | Root left; each subtree in its own vertical band; siblings near their parent (`Δx≈280`, `Δy≈150` per sibling).                                                           |
 
 ### When to fill `body`
 
@@ -129,6 +133,7 @@ Fill when at least one of these is true:
 2. Title alone is ambiguous (same word, different meaning) — add a 1-line plain definition.
 3. A concrete cue helps recall: command, flag, formula, error code, version pin.
 4. The source URL is the topic itself — put it on the **root** (and section nodes that map to headings with stable anchors, when useful).
+5. A small syntax/API/behavior example teaches the idea faster than another explanation sentence.
 
 Leave empty for pure structural grouping nodes (“手順”, “比較”) where children carry the meaning.
 
@@ -157,13 +162,34 @@ Body patterns (good):
 
 Body bad: multi-paragraph summaries; link dumps without a cue; unofficial SEO scrapes.
 
+### Minimal examples (when useful)
+
+- Put the example in the **same concept node**; do not create a child whose only purpose is “サンプル”.
+- Show exactly one point with the smallest useful snippet: normally **2–6 lines**, one code block, no imports/setup unless essential.
+- Prefer runnable/type-checkable code, but use a focused fragment when boilerplate would hide the idea.
+- Add expected output or a 1-line takeaway only when the result is not obvious from the snippet.
+- Write the example for this graph; do not paste a long example or English prose from the documentation.
+- When cue + example + link are all useful, order them **cue → code → official link** and keep the body around **8 visual lines** (hard max ~12). If it still does not fit, remove secondary detail or split a genuinely separate concept.
+
+Body pattern with a sample (good):
+
+````markdown
+- 引数名を持たせると順番への依存がなくなる
+
+```ts
+sendEmail({ from, to });
+```
+
+- [TypeScript: Functions](https://www.typescriptlang.org/docs/handbook/2/functions.html)
+````
+
 ## Workflow
 
 1. **Ingest** — URL or text. Extract candidate ideas; note **official doc URLs**. Do not dump source into nodes.
 2. **Level map** — assign each idea to L0/L1/L2/(L3). Drop TOC chrome. Merge synonyms. Apply **Child test** and **Shape budget** on paper first.
 3. **Outline** — 1 root → 3–6 L1 facets → 2–5 L2 units each. Recurse to L3 only when Child test still demands a node. Prefer a balanced bush over deep or wide extremes.
 4. **Wording pass** — rewrite every planned title into plain language (Language section).
-5. **Body pass** — for each leaf / key concept: 0–2 bullets (cue) + official link when available. Anything that failed “necessary as a node” goes here. Skip structural-only nodes.
+5. **Body pass** — for each leaf / key concept: add a short cue, a verified official link when useful, and one minimal example when it teaches faster than prose. Apply the body line budget; anything that failed “necessary as a node” goes here. Skip structural-only nodes.
 6. **Auth** — `gqn whoami` / `gqn --prod whoami`; if unauthorized, set API token (`gqn config set-token`). Never print tokens.
 7. **Create graph + root** (root body: source URL and/or primary official overview)
 
@@ -189,7 +215,7 @@ gqn --prod edges create <graphId> <sourceId> <targetId> --label 'depends'
 
 10. **Verify structure then layout** — `gqn --prod graphs get <graphId>`:
     - depth ≤ 3 edges; no parent with >7 children; no filler mid-nodes
-    - bodies/links look right
+    - bodies/links/examples look right; no pasted prose or overlong card (>~12 visual lines)
     - then `gqn --prod fmt <graphId>` (or **`gqn-node-refactor`** if topology is wrong, not just positions)
 11. Report graph id + open URL + shape one-liner (depth × facets × approx nodes). No essay retelling.
 
