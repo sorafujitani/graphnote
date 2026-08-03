@@ -1,10 +1,37 @@
-import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite-plus";
+import { playwright } from "vite-plus/test/browser-playwright";
 
 export default defineConfig({
   test: {
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "cli/**/*.test.ts"],
-    environment: "happy-dom",
-    setupFiles: ["./src/test/setup.ts"],
+    projects: [
+      {
+        // Pure logic: layout math, worker rules, keyboard helpers.
+        test: {
+          name: "node",
+          include: ["src/**/*.test.ts", "src/**/*.test.tsx", "cli/**/*.test.ts"],
+          exclude: ["src/**/*.browser.test.tsx"],
+          environment: "happy-dom",
+          setupFiles: ["./src/test/setup.ts"],
+        },
+      },
+      {
+        // Canvas behaviour: real layout, real hit testing, real pointer events.
+        // happy-dom reports zero-sized boxes, so these belong in a browser.
+        plugins: [react()],
+        test: {
+          name: "browser",
+          include: ["src/**/*.browser.test.tsx"],
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: "chromium" }],
+            viewport: { width: 1280, height: 900 },
+          },
+        },
+      },
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

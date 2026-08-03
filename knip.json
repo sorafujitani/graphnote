@@ -1,4 +1,3 @@
 {
-  "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreDependencies": ["@testing-library/react"]
+  "$schema": "https://unpkg.com/knip@6/schema.json"
 }

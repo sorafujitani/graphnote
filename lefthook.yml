@@ -2,11 +2,11 @@ pre-commit:
   parallel: true
   jobs:
     - name: fmt
-      run: pnpm exec oxfmt {staged_files}
+      run: pnpm exec vp fmt {staged_files}
       stage_fixed: true
       glob: "*.{ts,tsx,js,jsx,json,css,md,yml,yaml}"
     - name: lint
-      run: pnpm exec oxlint {staged_files}
+      run: pnpm exec vp lint {staged_files}
       glob: "*.{ts,tsx,js,jsx}"
     - name: typecheck
       run: pnpm run typecheck

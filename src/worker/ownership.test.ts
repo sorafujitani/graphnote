@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { QUOTA } from "../shared/quota";
 import type { GraphExport } from "../shared/types";
 import { importGraph } from "./db";

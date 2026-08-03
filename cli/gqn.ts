@@ -133,7 +133,15 @@ function print(data: unknown): void {
 }
 
 /** Flags that never take a value (so `gqn --prod graphs list` works). */
-const BOOLEAN_FLAGS = new Set(["local", "prod", "production", "cascade", "help", "h"]);
+const BOOLEAN_FLAGS: Record<string, true> = {
+  local: true,
+  prod: true,
+  production: true,
+  cascade: true,
+  force: true,
+  help: true,
+  h: true,
+};
 
 function parseArgs(argv: string[]): { args: string[]; flags: Flags } {
   const args: string[] = [];
@@ -152,7 +160,7 @@ function parseArgs(argv: string[]): { args: string[]; flags: Flags } {
       }
       const key = token.slice(2);
       const next = argv[i + 1];
-      if (!BOOLEAN_FLAGS.has(key) && next && !next.startsWith("-")) {
+      if (!BOOLEAN_FLAGS[key] && next && !next.startsWith("-")) {
         flags[key] = next;
         i++;
       } else {
@@ -163,7 +171,7 @@ function parseArgs(argv: string[]): { args: string[]; flags: Flags } {
     if (token.startsWith("-") && token.length === 2) {
       const key = token.slice(1);
       const next = argv[i + 1];
-      if (!BOOLEAN_FLAGS.has(key) && next && !next.startsWith("-")) {
+      if (!BOOLEAN_FLAGS[key] && next && !next.startsWith("-")) {
         flags[key] = next;
         i++;
       } else {
@@ -267,6 +275,9 @@ Nodes:
 Edges:
   gqn edges create <graphId> <sourceId> <targetId> [--label L]
   gqn edges delete <graphId> <edgeId>
+
+Agent skills (gqn · gqn-teach · gqn-node-refactor):
+  npx skills add sorafujitani/graphnote
 
 Other:
   gqn cascade <graphId> <nodeId...> [--mode outgoing|both]

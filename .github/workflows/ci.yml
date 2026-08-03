@@ -42,11 +42,14 @@ jobs:
       - name: Knip
         run: pnpm run knip
 
+      - name: Browser for canvas tests
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Test
         run: pnpm run test:coverage
 
       - name: Build
-        run: pnpm run build:cli && pnpm exec vite build
+        run: pnpm run build
 
       - name: Wrangler dry-run
         run: pnpm exec wrangler deploy --dry-run

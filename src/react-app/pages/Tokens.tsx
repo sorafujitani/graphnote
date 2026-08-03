@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ApiTokenMeta } from "../../shared/types";
 import { ApiError, api } from "../api";
+import { CommandLine } from "../components/CommandLine";
 
 type Props = {
   onBack: () => void;
@@ -12,6 +13,8 @@ export function Tokens({ onBack }: Props) {
   const [created, setCreated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Same host the page came from, so a local install points at the local worker.
+  const origin = window.location.origin;
 
   async function refresh() {
     const data = await api.listTokens();
@@ -61,14 +64,15 @@ export function Tokens({ onBack }: Props) {
         Create an access key to connect graphnote from another app or device. Copy it when shown —
         we cannot display it again.
       </p>
-      <p className="muted" style={{ fontSize: "0.85rem" }}>
-        Developers: use the <code>gqn</code> CLI with <code>gqn config set-token …</code>.
-      </p>
       {error ? <p className="error">{error}</p> : null}
       {created ? (
         <div className="panel" style={{ padding: "1rem", marginBottom: "1rem" }}>
           <p style={{ margin: "0 0 0.5rem" }}>Copy this key now:</p>
           <code style={{ wordBreak: "break-all" }}>{created}</code>
+          <p className="muted" style={{ margin: "0.75rem 0 0.35rem", fontSize: "0.85rem" }}>
+            Then point the CLI at it:
+          </p>
+          <CommandLine command={`gqn config set-token ${created}`} />
         </div>
       ) : null}
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
@@ -114,6 +118,23 @@ export function Tokens({ onBack }: Props) {
           </li>
         ))}
       </ul>
+
+      <section className="panel install-panel">
+        <h2 className="install-title">Command line &amp; agent skills</h2>
+        <p className="muted install-lead">
+          One command installs the <code>gqn</code> CLI, one adds the agent skills. Needs Node.js
+          20+.
+        </p>
+        <CommandLine
+          command={`curl -fsSL ${origin}/install.sh | sh`}
+          hint={`Installs gqn into ~/.local/bin and the bundle into ~/.local/share/graphnote.`}
+        />
+        <CommandLine
+          command="npx skills add sorafujitani/graphnote"
+          hint="Adds gqn · gqn-teach · gqn-node-refactor to your agent. -g installs globally, --agent picks the agent, npx skills update refreshes them."
+        />
+        <CommandLine command="gqn graphs list" hint="Check the key works." />
+      </section>
     </div>
   );
 }
