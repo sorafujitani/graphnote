@@ -1,5 +1,14 @@
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
-import { type ChangeEvent, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useSyncedDraft } from "../lib/useSyncedDraft";
 import { useNoteActions } from "./NoteActions";
 
@@ -22,7 +31,18 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
   const { onChange, onRequestChild } = useNoteActions();
   const [title, setTitle] = useSyncedDraft(data.title);
   const [body, setBody] = useSyncedDraft(data.body);
+  const [editingBody, setEditingBody] = useState(false);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const active = selected || data.inCascade || data.activeParent;
+
+  useEffect(() => {
+    if (!editingBody) return;
+    const el = bodyRef.current;
+    if (!el) return;
+    el.focus();
+    const len = el.value.length;
+    el.setSelectionRange(len, len);
+  }, [editingBody]);
 
   function commitTitle() {
     if (title !== data.title) onChange(id, { title });
@@ -32,11 +52,17 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     if (body !== data.body) onChange(id, { body });
   }
 
+  function finishBodyEdit() {
+    commitBody();
+    setEditingBody(false);
+  }
+
   function requestChild(event: KeyboardEvent) {
     event.preventDefault();
     event.stopPropagation();
     commitTitle();
     commitBody();
+    setEditingBody(false);
     (event.target as HTMLElement).blur();
     onRequestChild(id);
   }
@@ -56,9 +82,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     if (event.key === "Enter") {
       event.preventDefault();
       commitTitle();
-      document
-        .querySelector<HTMLTextAreaElement>(`[data-node-id="${id}"][data-node-field="body"]`)
-        ?.focus();
+      setEditingBody(true);
     }
   }
 
@@ -71,13 +95,12 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     if (event.key === "Escape") {
       event.preventDefault();
       setBody(data.body);
-      (event.target as HTMLTextAreaElement).blur();
+      setEditingBody(false);
       return;
     }
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
-      commitBody();
-      (event.target as HTMLTextAreaElement).blur();
+      finishBodyEdit();
     }
   }
 
@@ -85,8 +108,8 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     <div
       style={{
         position: "relative",
-        minWidth: 200,
-        width: 220,
+        minWidth: 220,
+        width: 260,
         background: active ? "var(--node-bg-active)" : "var(--node-bg)",
         border: `1px solid ${active ? "var(--accent)" : "var(--line)"}`,
         borderRadius: 12,
@@ -143,33 +166,70 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
           marginBottom: 6,
         }}
       />
-      <textarea
-        className="nodrag nopan nowheel"
-        data-node-id={id}
-        data-node-field="body"
-        value={body}
-        placeholder="Write here…"
-        aria-label={`Body for node ${id}`}
-        rows={3}
-        onMouseDown={stopMouse}
-        onClick={stopMouse}
-        onDoubleClick={stopMouse}
-        onKeyDown={onBodyKeyDown}
-        onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setBody(e.target.value)}
-        onBlur={commitBody}
-        style={{
-          width: "100%",
-          border: "none",
-          outline: "none",
-          resize: "none",
-          background: "transparent",
-          fontSize: "0.82rem",
-          lineHeight: 1.4,
-          color: "var(--muted)",
-          padding: 0,
-          display: "block",
-        }}
-      />
+      {editingBody ? (
+        <textarea
+          ref={bodyRef}
+          className="nodrag nopan nowheel note-body-editor"
+          data-node-id={id}
+          data-node-field="body"
+          value={body}
+          placeholder="Write markdown…"
+          aria-label={`Markdown body for node ${id}`}
+          rows={5}
+          onMouseDown={stopMouse}
+          onClick={stopMouse}
+          onDoubleClick={stopMouse}
+          onKeyDown={onBodyKeyDown}
+          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setBody(e.target.value)}
+          onBlur={finishBodyEdit}
+        />
+      ) : (
+        <button
+          type="button"
+          className="nodrag nopan nowheel note-body-preview"
+          data-node-id={id}
+          data-node-field="body"
+          aria-label={`Markdown body for node ${id}. Click to edit.`}
+          onMouseDown={stopMouse}
+          onClick={(event) => {
+            stopMouse(event);
+            setEditingBody(true);
+          }}
+        >
+          {body.trim() ? (
+            <div className="note-md">
+              <Markdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  a: ({ href, children }) => (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      onMouseDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {children}
+                    </a>
+                  ),
+                  input: (props) => (
+                    <input
+                      {...props}
+                      disabled
+                      onMouseDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  ),
+                }}
+              >
+                {body}
+              </Markdown>
+            </div>
+          ) : (
+            <span className="note-body-placeholder">Write here…</span>
+          )}
+        </button>
+      )}
       <Handle type="source" position={Position.Right} />
     </div>
   );

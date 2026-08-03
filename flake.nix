@@ -41,6 +41,11 @@
               ]
             }:$PATH"
 
+            # Ensure CLI bundle exists for ./bin/gqn
+            if [[ ! -f "$PWD/dist/cli/gqn.js" ]] && [[ -f "$PWD/package.json" ]]; then
+              pnpm run build:cli >/dev/null || true
+            fi
+
             echo "graphnote devShell"
             echo "  node: $(node --version)"
             echo "  pnpm: $(pnpm --version)"

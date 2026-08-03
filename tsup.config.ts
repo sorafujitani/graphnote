@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["cli/graphnote.ts"],
+  entry: ["cli/gqn.ts"],
   format: ["esm"],
   platform: "node",
   target: "node20",

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Repo-local gqn entrypoint (used by direnv PATH).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DIST="$ROOT/dist/cli/gqn.js"
+
+if [[ ! -f "$DIST" ]]; then
+  (cd "$ROOT" && pnpm run build:cli) >/dev/null
+fi
+
+exec node "$DIST" "$@"

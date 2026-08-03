@@ -1,5 +1,5 @@
 /**
- * graphnote — agent-friendly CLI for the graphnote Workers API.
+ * gqn — agent-friendly CLI for the graphnote Workers API.
  * JSON on stdout by default. Errors as {"error":"..."} with non-zero exit.
  */
 
@@ -42,22 +42,41 @@ type CreateNodeInput = {
 
 type UpdateNodeInput = Partial<Pick<NodeRecord, "title" | "body" | "x" | "y">>;
 
-const CONFIG_DIR = process.env.GRAPHNOTE_CONFIG_DIR
-  ? process.env.GRAPHNOTE_CONFIG_DIR
-  : join(homedir(), ".config", "graphnote");
-const CONFIG_PATH = join(CONFIG_DIR, "config.json");
-const COOKIE_PATH = join(CONFIG_DIR, "cookie");
+const PROD_URL = "https://graphnote.fujitanisora0414.workers.dev";
+const LOCAL_URL = "http://127.0.0.1:5173";
+const PROD_CONFIG_DIR = join(homedir(), ".config", "graphnote");
+const LOCAL_CONFIG_DIR = join(homedir(), ".config", "graphnote-local");
+/** Default target is production. */
+const DEFAULT_URL = PROD_URL;
 
-const DEFAULT_URL = "https://graphnote.fujitanisora0414.workers.dev";
+const runtime = {
+  /** Set by --local / --prod / --url (wins over env + config file). */
+  urlOverride: undefined as string | undefined,
+  /** Set by --local / --prod so cookies don't cross environments. */
+  configDirOverride: undefined as string | undefined,
+};
+
+function configDir(): string {
+  return runtime.configDirOverride || process.env.GRAPHNOTE_CONFIG_DIR || PROD_CONFIG_DIR;
+}
+
+function configPath(): string {
+  return join(configDir(), "config.json");
+}
+
+function cookiePath(): string {
+  return join(configDir(), "cookie");
+}
 
 function ensureConfigDir(): void {
-  mkdirSync(CONFIG_DIR, { recursive: true });
+  mkdirSync(configDir(), { recursive: true });
 }
 
 function readConfigFile(): ConfigFile {
-  if (!existsSync(CONFIG_PATH)) return {};
+  const path = configPath();
+  if (!existsSync(path)) return {};
   try {
-    return JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as ConfigFile;
+    return JSON.parse(readFileSync(path, "utf8")) as ConfigFile;
   } catch {
     return {};
   }
@@ -67,7 +86,10 @@ function loadConfig(): Config {
   ensureConfigDir();
   const file = readConfigFile();
   return {
-    url: (process.env.GRAPHNOTE_URL || file.url || DEFAULT_URL).replace(/\/$/, ""),
+    url: (runtime.urlOverride || process.env.GRAPHNOTE_URL || file.url || DEFAULT_URL).replace(
+      /\/$/,
+      "",
+    ),
     password: process.env.GRAPHNOTE_PASSWORD || file.password || "",
   };
 }
@@ -79,24 +101,44 @@ function saveConfig(patch: Partial<ConfigFile>): Config {
     url: (patch.url ?? file.url ?? DEFAULT_URL).replace(/\/$/, ""),
     password: patch.password ?? file.password ?? "",
   };
-  writeFileSync(CONFIG_PATH, `${JSON.stringify(next, null, 2)}\n`, {
+  writeFileSync(configPath(), `${JSON.stringify(next, null, 2)}\n`, {
     mode: 0o600,
   });
   return next;
 }
 
 function loadCookie(): string {
-  if (!existsSync(COOKIE_PATH)) return "";
-  return readFileSync(COOKIE_PATH, "utf8").trim();
+  const path = cookiePath();
+  if (!existsSync(path)) return "";
+  return readFileSync(path, "utf8").trim();
 }
 
 function saveCookie(value: string): void {
   ensureConfigDir();
-  writeFileSync(COOKIE_PATH, `${value}\n`, { mode: 0o600 });
+  writeFileSync(cookiePath(), `${value}\n`, { mode: 0o600 });
 }
 
 function clearCookie(): void {
-  if (existsSync(COOKIE_PATH)) unlinkSync(COOKIE_PATH);
+  const path = cookiePath();
+  if (existsSync(path)) unlinkSync(path);
+}
+
+/** Apply global --local / --prod / --url. Flags win over env and config. */
+function applyTargetFlags(flags: Flags): void {
+  const local = Boolean(flag(flags, "local"));
+  const prod = Boolean(flag(flags, "prod", "production"));
+  if (local && prod) fail("use only one of --local / --prod");
+  if (local) {
+    runtime.urlOverride = LOCAL_URL;
+    runtime.configDirOverride = LOCAL_CONFIG_DIR;
+  } else if (prod) {
+    runtime.urlOverride = PROD_URL;
+    runtime.configDirOverride = PROD_CONFIG_DIR;
+  }
+  const urlFlag = flag(flags, "url");
+  if (typeof urlFlag === "string" && urlFlag) {
+    runtime.urlOverride = urlFlag.replace(/\/$/, "");
+  }
 }
 
 function fail(message: string, code = 1): never {
@@ -108,6 +150,9 @@ function fail(message: string, code = 1): never {
 function print(data: unknown): void {
   process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);
 }
+
+/** Flags that never take a value (so `gqn --prod graphs list` works). */
+const BOOLEAN_FLAGS = new Set(["local", "prod", "production", "cascade", "help", "h"]);
 
 function parseArgs(argv: string[]): { args: string[]; flags: Flags } {
   const args: string[] = [];
@@ -126,7 +171,7 @@ function parseArgs(argv: string[]): { args: string[]; flags: Flags } {
       }
       const key = token.slice(2);
       const next = argv[i + 1];
-      if (next && !next.startsWith("-")) {
+      if (!BOOLEAN_FLAGS.has(key) && next && !next.startsWith("-")) {
         flags[key] = next;
         i++;
       } else {
@@ -137,7 +182,7 @@ function parseArgs(argv: string[]): { args: string[]; flags: Flags } {
     if (token.startsWith("-") && token.length === 2) {
       const key = token.slice(1);
       const next = argv[i + 1];
-      if (next && !next.startsWith("-")) {
+      if (!BOOLEAN_FLAGS.has(key) && next && !next.startsWith("-")) {
         flags[key] = next;
         i++;
       } else {
@@ -215,7 +260,7 @@ async function api<T>(
 
   if (!res.ok) {
     if (res.status === 401 && !allowUnauthorized) {
-      fail("unauthorized — run: graphnote login", 2);
+      fail("unauthorized — run: gqn login", 2);
     }
     const errBody = data as ApiErrorBody | null;
     const message =
@@ -231,50 +276,58 @@ async function ensureLogin(explicitPassword?: string): Promise<{ ok: true; url: 
   const password = explicitPassword || cfg.password;
   if (!password) {
     fail(
-      "password required — set GRAPHNOTE_PASSWORD, run graphnote config set-password, or graphnote login --password ...",
+      "password required — set GRAPHNOTE_PASSWORD, run gqn config set-password, or gqn login --password ...",
     );
   }
   await api<{ ok: boolean }>("POST", "/api/auth/login", { password }, { allowUnauthorized: true });
   return { ok: true, url: cfg.url };
 }
 
-const HELP = `graphnote — CLI for graphnote API
+const HELP = `gqn — CLI for graphnote API
 
-Config:
-  GRAPHNOTE_URL          Base URL (default: production workers.dev)
-  GRAPHNOTE_PASSWORD     Shared password
-  ~/.config/graphnote/   config.json + cookie
+Target (default: production):
+  --prod                 ${PROD_URL}
+  --local                ${LOCAL_URL}
+  --url <url>            arbitrary base URL
+  GRAPHNOTE_URL          env override (below flags)
+  ~/.config/graphnote/   prod config + cookie
+  ~/.config/graphnote-local/  used with --local
 
 Auth:
-  graphnote login [--password <pw>]
-  graphnote logout
-  graphnote whoami
+  gqn login [--password <pw>]
+  gqn logout
+  gqn whoami
 
 Config:
-  graphnote config show
-  graphnote config set-url <url>
-  graphnote config set-password <pw>
+  gqn config show
+  gqn config set-url <url>
+  gqn config set-password <pw>
 
 Graphs:
-  graphnote graphs list
-  graphnote graphs create <title>
-  graphnote graphs get <graphId>
-  graphnote graphs rename <graphId> <title>
-  graphnote graphs delete <graphId>
-  graphnote graphs export <graphId>
+  gqn graphs list
+  gqn graphs create <title>
+  gqn graphs get <graphId>
+  gqn graphs rename <graphId> <title>
+  gqn graphs delete <graphId>
+  gqn graphs export <graphId>
 
 Nodes:
-  graphnote nodes create <graphId> [--title T] [--body B] [--x N] [--y N] [--parent <nodeId>]
-  graphnote nodes update <graphId> <nodeId> [--title T] [--body B] [--x N] [--y N]
-  graphnote nodes delete <graphId> <nodeId...> [--cascade]
+  gqn nodes create <graphId> [--title T] [--body B] [--x N] [--y N] [--parent <nodeId>]
+  gqn nodes update <graphId> <nodeId> [--title T] [--body B] [--x N] [--y N]
+  gqn nodes delete <graphId> <nodeId...> [--cascade]
 
 Edges:
-  graphnote edges create <graphId> <sourceId> <targetId> [--label L]
-  graphnote edges delete <graphId> <edgeId>
+  gqn edges create <graphId> <sourceId> <targetId> [--label L]
+  gqn edges delete <graphId> <edgeId>
 
 Other:
-  graphnote cascade <graphId> <nodeId...> [--mode outgoing|both]
-  graphnote health
+  gqn cascade <graphId> <nodeId...> [--mode outgoing|both]
+  gqn health
+
+Examples:
+  gqn graphs list
+  gqn --local graphs list
+  gqn --prod login
 `;
 
 async function cmdGraphs(args: string[], flags: Flags): Promise<unknown> {
@@ -296,37 +349,37 @@ async function cmdGraphs(args: string[], flags: Flags): Promise<unknown> {
     case "show": {
       const idFlag = flag(flags, "id");
       const id = rest[0] || (typeof idFlag === "string" ? idFlag : undefined);
-      if (!id) fail("usage: graphnote graphs get <graphId>");
+      if (!id) fail("usage: gqn graphs get <graphId>");
       return api<GraphDetail>("GET", `/api/graphs/${id}`);
     }
     case "rename": {
       const id = rest[0];
       const title = rest.slice(1).join(" ").trim();
       if (!id || !title) {
-        fail("usage: graphnote graphs rename <graphId> <title>");
+        fail("usage: gqn graphs rename <graphId> <title>");
       }
       return api<{ graph: Graph }>("PATCH", `/api/graphs/${id}`, { title });
     }
     case "delete":
     case "rm": {
       const id = rest[0];
-      if (!id) fail("usage: graphnote graphs delete <graphId>");
+      if (!id) fail("usage: gqn graphs delete <graphId>");
       return api<{ ok: boolean }>("DELETE", `/api/graphs/${id}`);
     }
     case "export": {
       const id = rest[0];
-      if (!id) fail("usage: graphnote graphs export <graphId>");
+      if (!id) fail("usage: gqn graphs export <graphId>");
       return api<{ export: GraphExport; r2Key: string }>("POST", `/api/graphs/${id}/export`);
     }
     default:
-      fail("usage: graphnote graphs <list|create|get|rename|delete|export>");
+      fail("usage: gqn graphs <list|create|get|rename|delete|export>");
   }
 }
 
 async function cmdNodes(args: string[], flags: Flags): Promise<unknown> {
   const [action, graphId, ...rest] = args;
-  if (!action) fail("usage: graphnote nodes <create|update|delete>");
-  if (!graphId) fail(`usage: graphnote nodes ${action} <graphId> ...`);
+  if (!action) fail("usage: gqn nodes <create|update|delete>");
+  if (!graphId) fail(`usage: gqn nodes ${action} <graphId> ...`);
 
   switch (action) {
     case "create":
@@ -371,7 +424,7 @@ async function cmdNodes(args: string[], flags: Flags): Promise<unknown> {
     case "patch": {
       const nodeId = rest[0];
       if (!nodeId) {
-        fail("usage: graphnote nodes update <graphId> <nodeId> [--title|--body|--x|--y]");
+        fail("usage: gqn nodes update <graphId> <nodeId> [--title|--body|--x|--y]");
       }
       const patch: UpdateNodeInput = {};
       const title = flag(flags, "title", "t");
@@ -389,7 +442,7 @@ async function cmdNodes(args: string[], flags: Flags): Promise<unknown> {
     case "rm": {
       const ids = rest;
       if (!ids.length) {
-        fail("usage: graphnote nodes delete <graphId> <nodeId...> [--cascade]");
+        fail("usage: gqn nodes delete <graphId> <nodeId...> [--cascade]");
       }
       const cascade = Boolean(flag(flags, "cascade"));
       return api<{ deletedNodeIds: string[]; deletedEdgeIds: string[] }>(
@@ -399,7 +452,7 @@ async function cmdNodes(args: string[], flags: Flags): Promise<unknown> {
       );
     }
     default:
-      fail("usage: graphnote nodes <create|update|delete>");
+      fail("usage: gqn nodes <create|update|delete>");
   }
 }
 
@@ -409,7 +462,7 @@ async function cmdEdges(args: string[], flags: Flags): Promise<unknown> {
     case "create":
     case "add": {
       if (!graphId || !a || !b) {
-        fail("usage: graphnote edges create <graphId> <sourceId> <targetId> [--label L]");
+        fail("usage: gqn edges create <graphId> <sourceId> <targetId> [--label L]");
       }
       const label = flag(flags, "label", "l");
       const body: { source_id: string; target_id: string; label?: string } = {
@@ -422,12 +475,12 @@ async function cmdEdges(args: string[], flags: Flags): Promise<unknown> {
     case "delete":
     case "rm": {
       if (!graphId || !a) {
-        fail("usage: graphnote edges delete <graphId> <edgeId>");
+        fail("usage: gqn edges delete <graphId> <edgeId>");
       }
       return api<{ ok: boolean }>("DELETE", `/api/graphs/${graphId}/edges/${a}`);
     }
     default:
-      fail("usage: graphnote edges <create|delete>");
+      fail("usage: gqn edges <create|delete>");
   }
 }
 
@@ -438,8 +491,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  const [command, ...rest] = argv;
-  const { args, flags } = parseArgs(rest);
+  // Global flags may appear before or after the command: `gqn --local graphs list`
+  const { args, flags } = parseArgs(argv);
+  applyTargetFlags(flags);
+  const [command, ...cmdArgs] = args;
+  if (!command) {
+    process.stdout.write(HELP);
+    return;
+  }
+  const restFlags = flags;
 
   try {
     switch (command) {
@@ -451,40 +511,40 @@ async function main(): Promise<void> {
         return;
       }
       case "config": {
-        const [sub, ...cfgArgs] = args;
+        const [sub, ...cfgArgs] = cmdArgs;
         if (sub === "show" || !sub) {
           const cfg = loadConfig();
           print({
             url: cfg.url,
             password: cfg.password ? "***" : "",
-            configPath: CONFIG_PATH,
-            cookiePath: COOKIE_PATH,
+            configPath: configPath(),
+            cookiePath: cookiePath(),
             hasCookie: Boolean(loadCookie()),
           });
           return;
         }
         if (sub === "set-url") {
-          const urlFlag = flag(flags, "url");
-          const url = cfgArgs[0] || (typeof urlFlag === "string" ? urlFlag : "");
-          if (!url) fail("usage: graphnote config set-url <url>");
+          // Prefer positional arg; global --url is the target override, not set-url value.
+          const url = cfgArgs[0];
+          if (!url) fail("usage: gqn config set-url <url>");
           const saved = saveConfig({ url: url.replace(/\/$/, "") });
           print({ ok: true, url: saved.url });
           return;
         }
         if (sub === "set-password") {
-          const pwFlag = flag(flags, "password");
+          const pwFlag = flag(restFlags, "password");
           const password = cfgArgs[0] || (typeof pwFlag === "string" ? pwFlag : "");
           if (!password) {
-            fail("usage: graphnote config set-password <password>");
+            fail("usage: gqn config set-password <password>");
           }
           saveConfig({ password });
           print({ ok: true });
           return;
         }
-        fail("usage: graphnote config <show|set-url|set-password>");
+        fail("usage: gqn config <show|set-url|set-password>");
       }
       case "login": {
-        const password = flag(flags, "password", "p") || args[0];
+        const password = flag(restFlags, "password", "p") || cmdArgs[0];
         print(await ensureLogin(typeof password === "string" ? password : undefined));
         return;
       }
@@ -508,22 +568,22 @@ async function main(): Promise<void> {
       case "graphs":
       case "graph":
       case "notes":
-        print(await cmdGraphs(args, flags));
+        print(await cmdGraphs(cmdArgs, restFlags));
         return;
       case "nodes":
       case "node":
-        print(await cmdNodes(args, flags));
+        print(await cmdNodes(cmdArgs, restFlags));
         return;
       case "edges":
       case "edge":
-        print(await cmdEdges(args, flags));
+        print(await cmdEdges(cmdArgs, restFlags));
         return;
       case "cascade": {
-        const [graphId, ...nodeIds] = args;
+        const [graphId, ...nodeIds] = cmdArgs;
         if (!graphId || nodeIds.length === 0) {
-          fail("usage: graphnote cascade <graphId> <nodeId...> [--mode outgoing|both]");
+          fail("usage: gqn cascade <graphId> <nodeId...> [--mode outgoing|both]");
         }
-        const modeFlag = flag(flags, "mode");
+        const modeFlag = flag(restFlags, "mode");
         const mode = typeof modeFlag === "string" ? modeFlag : "outgoing";
         print(
           await api<CascadeResult>("POST", `/api/graphs/${graphId}/cascade-select`, {
@@ -534,8 +594,8 @@ async function main(): Promise<void> {
         return;
       }
       case "export": {
-        const id = args[0];
-        if (!id) fail("usage: graphnote export <graphId>");
+        const id = cmdArgs[0];
+        if (!id) fail("usage: gqn export <graphId>");
         print(
           await api<{ export: GraphExport; r2Key: string }>("POST", `/api/graphs/${id}/export`),
         );

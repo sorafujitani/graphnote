@@ -9,7 +9,24 @@ export function focusNodeField(nodeId: string, field: "title" | "body" = "title"
   const el = document.querySelector<HTMLElement>(
     `[data-node-id="${nodeId}"][data-node-field="${field}"]`,
   );
-  el?.focus();
+  if (!el) return;
+
+  // Body preview is a button; click switches to the textarea editor.
+  if (field === "body" && !(el instanceof HTMLTextAreaElement)) {
+    el.click();
+    window.setTimeout(() => {
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        `textarea[data-node-id="${nodeId}"][data-node-field="body"]`,
+      );
+      if (!textarea) return;
+      textarea.focus();
+      const len = textarea.value.length;
+      textarea.setSelectionRange(len, len);
+    }, 0);
+    return;
+  }
+
+  el.focus();
   if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
     const len = el.value.length;
     el.setSelectionRange(len, len);

@@ -3,7 +3,7 @@
   "private": true,
   "description": "Personal graph notes on Cloudflare Workers (D1 + R2 export)",
   "bin": {
-    "graphnote": "./dist/cli/graphnote.js"
+    "gqn": "./dist/cli/gqn.js"
   },
   "files": [
     "dist/cli",
@@ -22,7 +22,7 @@
     "dev": "pnpm run db:migrate:local && vite",
     "fmt": "oxfmt .",
     "fmt:check": "oxfmt --check .",
-    "graphnote": "tsx ./cli/graphnote.ts",
+    "gqn": "tsx ./cli/gqn.ts",
     "hooks:install": "lefthook install",
     "knip": "knip",
     "lint": "oxlint .",
@@ -38,7 +38,9 @@
     "@xyflow/react": "^12.11.2",
     "hono": "^4.12.34",
     "react": "^19.2.1",
-    "react-dom": "^19.2.1"
+    "react-dom": "^19.2.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@babel/core": "^8.0.1",

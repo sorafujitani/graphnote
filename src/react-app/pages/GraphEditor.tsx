@@ -936,7 +936,7 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
             <div>F / ↑↓←→ · focus parent</div>
             <div>Tab · linked child</div>
             <div>N · free node</div>
-            <div>Enter · edit title</div>
+            <div>Enter · edit · md body</div>
             <div>Esc · clear focus</div>
             <div>⇧↑↓←→ · nudge</div>
             <div>L · link nodes</div>
