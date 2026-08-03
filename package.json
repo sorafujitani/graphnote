@@ -1,7 +1,7 @@
 {
   "name": "graphnote",
   "private": true,
-  "description": "Personal graph notes on Cloudflare Workers (D1 + R2 export)",
+  "description": "Personal graph notes on Cloudflare Workers (Google auth, D1, R2 export)",
   "bin": {
     "gqn": "./dist/cli/gqn.js"
   },
@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@xyflow/react": "^12.11.2",
+    "better-auth": "^1.6.25",
     "hono": "^4.12.34",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

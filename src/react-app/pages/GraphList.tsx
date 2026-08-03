@@ -6,9 +6,11 @@ import { isEditableTarget } from "../lib/keyboard";
 type Props = {
   onOpen: (graphId: string) => void;
   onLogout: () => void;
+  onOpenTokens: () => void;
+  onDeleteAccount: () => void;
 };
 
-export function GraphList({ onOpen, onLogout }: Props) {
+export function GraphList({ onOpen, onLogout, onOpenTokens, onDeleteAccount }: Props) {
   const [graphs, setGraphs] = useState<Graph[]>([]);
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,16 +44,16 @@ export function GraphList({ onOpen, onLogout }: Props) {
   async function onCreate(event?: FormEvent) {
     event?.preventDefault();
     try {
-      const { graph } = await api.createGraph(title.trim() || "Untitled note");
+      const detail = await api.createGraph(title.trim() || "Untitled note");
       setTitle("");
-      onOpen(graph.id);
+      onOpen(detail.graph.id);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "create failed");
     }
   }
 
   async function onDelete(graphId: string) {
-    if (!confirm("Delete this note and all of its nodes?")) return;
+    if (!confirm("Delete this note and everything inside it?")) return;
     try {
       await api.deleteGraph(graphId);
       await refresh();
@@ -119,9 +121,17 @@ export function GraphList({ onOpen, onLogout }: Props) {
           </p>
           <h1 style={{ margin: "0.2rem 0 0", fontSize: "2rem" }}>Notes</h1>
         </div>
-        <button className="btn secondary" type="button" onClick={onLogout}>
-          Log out
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <button className="btn secondary" type="button" onClick={onOpenTokens}>
+            Integrations
+          </button>
+          <button className="btn secondary" type="button" onClick={onDeleteAccount}>
+            Delete account
+          </button>
+          <button className="btn secondary" type="button" onClick={onLogout}>
+            Log out
+          </button>
+        </div>
       </header>
 
       <form
@@ -156,8 +166,8 @@ export function GraphList({ onOpen, onLogout }: Props) {
 
       {error ? <p className="error-text">{error}</p> : null}
       {loading ? <p className="muted">Loading notes…</p> : null}
-      <p className="mono muted" style={{ fontSize: "0.78rem", marginBottom: "0.75rem" }}>
-        N focus create · ↑↓ select · Enter open · ⌫ delete
+      <p className="muted" style={{ fontSize: "0.85rem", marginBottom: "0.75rem" }}>
+        Tip: use ↑↓ to browse, Enter to open
       </p>
 
       <div style={{ display: "grid", gap: "0.75rem" }}>
@@ -185,8 +195,8 @@ export function GraphList({ onOpen, onLogout }: Props) {
                 style={{ textAlign: "left", padding: 0, flex: 1 }}
               >
                 <div style={{ fontWeight: 600, fontSize: "1.05rem" }}>{graph.title}</div>
-                <div className="muted mono" style={{ fontSize: "0.8rem" }}>
-                  updated {new Date(graph.updated_at).toLocaleString()}
+                <div className="muted" style={{ fontSize: "0.8rem" }}>
+                  Updated {new Date(graph.updated_at).toLocaleString()}
                 </div>
               </button>
               <button
@@ -200,7 +210,7 @@ export function GraphList({ onOpen, onLogout }: Props) {
           );
         })}
         {!loading && graphs.length === 0 ? (
-          <p className="muted">No notes yet. Press N then Enter to create one.</p>
+          <p className="muted">No notes yet. Create one above to get started.</p>
         ) : null}
       </div>
     </div>

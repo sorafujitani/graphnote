@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { ApiError, api } from "./api";
+import { authClient } from "./lib/auth-client";
 import { navigate, parseRoute, type AppRoute } from "./lib/routing";
 import { GraphEditor } from "./pages/GraphEditor";
 import { GraphList } from "./pages/GraphList";
+import { Legal } from "./pages/Legal";
 import { Login } from "./pages/Login";
+import { Tokens } from "./pages/Tokens";
 
 type Screen = { name: "loading" } | { name: "login" } | AppRoute;
 
@@ -12,6 +15,12 @@ export default function App() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const route = parseRoute(window.location.pathname);
+    if (route.name === "terms" || route.name === "privacy") {
+      setScreen(route);
+      return;
+    }
+
     api
       .me()
       .then((data) => {
@@ -20,7 +29,6 @@ export default function App() {
           setScreen({ name: "login" });
           return;
         }
-        // Keep deep link on reload (e.g. /g/<id>).
         setScreen(parseRoute(window.location.pathname));
       })
       .catch(() => {
@@ -32,9 +40,14 @@ export default function App() {
 
   useEffect(() => {
     function onPopState() {
+      const route = parseRoute(window.location.pathname);
+      if (route.name === "terms" || route.name === "privacy") {
+        setScreen(route);
+        return;
+      }
       setScreen((prev) => {
         if (prev.name === "loading" || prev.name === "login") return prev;
-        return parseRoute(window.location.pathname);
+        return route;
       });
     }
     window.addEventListener("popstate", onPopState);
@@ -46,6 +59,16 @@ export default function App() {
     setScreen(route);
   }
 
+  async function logout() {
+    try {
+      await authClient.signOut();
+    } catch {
+      /* ignore */
+    }
+    navigate({ name: "list" }, "replace");
+    setScreen({ name: "login" });
+  }
+
   if (screen.name === "loading") {
     return (
       <div className="app-shell" style={{ display: "grid", placeItems: "center" }}>
@@ -54,14 +77,35 @@ export default function App() {
     );
   }
 
-  if (screen.name === "login") {
+  if (screen.name === "terms" || screen.name === "privacy") {
     return (
-      <Login
-        onSuccess={() => {
-          go(parseRoute(window.location.pathname), "replace");
+      <Legal
+        kind={screen.name}
+        onBack={() => {
+          void api
+            .me()
+            .then(() => go({ name: "list" }, "replace"))
+            .catch(() => {
+              navigate({ name: "list" }, "replace");
+              setScreen({ name: "login" });
+            });
         }}
       />
     );
+  }
+
+  if (screen.name === "login") {
+    return (
+      <Login
+        onOpenLegal={(page) => {
+          go({ name: page });
+        }}
+      />
+    );
+  }
+
+  if (screen.name === "tokens") {
+    return <Tokens onBack={() => go({ name: "list" })} />;
   }
 
   if (screen.name === "editor") {
@@ -69,11 +113,7 @@ export default function App() {
       <GraphEditor
         graphId={screen.graphId}
         onBack={() => go({ name: "list" })}
-        onLogout={async () => {
-          await api.logout();
-          navigate({ name: "list" }, "replace");
-          setScreen({ name: "login" });
-        }}
+        onLogout={() => void logout()}
       />
     );
   }
@@ -81,14 +121,16 @@ export default function App() {
   return (
     <GraphList
       onOpen={(graphId) => go({ name: "editor", graphId })}
-      onLogout={async () => {
+      onLogout={() => void logout()}
+      onOpenTokens={() => go({ name: "tokens" })}
+      onDeleteAccount={async () => {
+        if (!confirm("Delete your account and all notes permanently?")) return;
         try {
-          await api.logout();
+          await api.deleteAccount();
         } catch (error) {
           if (!(error instanceof ApiError)) throw error;
         }
-        navigate({ name: "list" }, "replace");
-        setScreen({ name: "login" });
+        await logout();
       }}
     />
   );

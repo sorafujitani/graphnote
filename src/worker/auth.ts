@@ -1,79 +1,54 @@
-import type { Context } from "hono";
-import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
+import type { PublicUser } from "../shared/types";
+import { createAuth } from "./better-auth";
 import type { Bindings } from "./env";
+import { resolveApiTokenUserId } from "./tokens";
 
-const COOKIE_NAME = "gn_session";
-const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+export type AuthVariables = {
+  userId: string;
+  user: PublicUser | null;
+};
 
-function bytesToBase64Url(bytes: ArrayBuffer | Uint8Array): string {
-  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  const bin = String.fromCharCode(...view);
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+function toPublicUser(user: {
+  id: string;
+  name: string;
+  email: string;
+  image?: string | null;
+}): PublicUser {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    image: user.image ?? null,
+  };
 }
 
-function textToBase64Url(text: string): string {
-  return bytesToBase64Url(new TextEncoder().encode(text));
-}
-
-function base64UrlToText(value: string): string {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
-  const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
-  return atob(padded + pad);
-}
-
-async function hmacSign(secret: string, payload: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
-  return bytesToBase64Url(sig);
-}
-
-export async function createSessionToken(secret: string): Promise<string> {
-  const exp = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
-  const payload = textToBase64Url(JSON.stringify({ exp }));
-  const sig = await hmacSign(secret, payload);
-  return `${payload}.${sig}`;
-}
-
-export async function verifySessionToken(secret: string, token: string): Promise<boolean> {
-  const [payload, sig] = token.split(".");
-  if (!payload || !sig) return false;
-  const expected = await hmacSign(secret, payload);
-  if (sig !== expected) return false;
-  try {
-    const data = JSON.parse(base64UrlToText(payload)) as { exp?: number };
-    if (typeof data.exp !== "number") return false;
-    return data.exp > Math.floor(Date.now() / 1000);
-  } catch {
-    return false;
+async function resolveUserId(
+  env: Bindings,
+  request: Request,
+): Promise<{ userId: string; user: PublicUser | null } | null> {
+  const authHeader = request.headers.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice("Bearer ".length).trim();
+    const userId = await resolveApiTokenUserId(env.DB, token);
+    if (userId) return { userId, user: null };
   }
+
+  const auth = createAuth(env);
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user) return null;
+  return { userId: session.user.id, user: toPublicUser(session.user) };
 }
 
-export function setSessionCookie(c: Context<{ Bindings: Bindings }>, token: string) {
-  const secure = new URL(c.req.url).protocol === "https:";
-  setCookie(c, COOKIE_NAME, token, {
-    httpOnly: true,
-    secure,
-    sameSite: "Lax",
-    path: "/",
-    maxAge: SESSION_TTL_SECONDS,
-  });
-}
-
-export function clearSessionCookie(c: Context<{ Bindings: Bindings }>) {
-  deleteCookie(c, COOKIE_NAME, { path: "/" });
-}
-
-export const requireAuth = createMiddleware<{ Bindings: Bindings }>(async (c, next) => {
-  const token = getCookie(c, COOKIE_NAME);
-  if (!token || !(await verifySessionToken(c.env.SESSION_SECRET, token))) {
+export const requireUser = createMiddleware<{
+  Bindings: Bindings;
+  Variables: AuthVariables;
+}>(async (c, next) => {
+  const resolved = await resolveUserId(c.env, c.req.raw);
+  if (!resolved) {
     return c.json({ error: "unauthorized" }, 401);
   }
+  c.set("userId", resolved.userId);
+  c.set("user", resolved.user);
   await next();
 });

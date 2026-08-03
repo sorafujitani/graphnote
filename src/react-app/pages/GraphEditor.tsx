@@ -482,7 +482,7 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const { export: payload, r2Key } = await api.exportGraph(graphId);
+      const { export: payload } = await api.exportGraph(graphId);
       const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: "application/json",
       });
@@ -492,7 +492,7 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
       a.download = `${payload.graph.title || "graphnote"}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      alert(`Exported and saved to R2:\n${r2Key}`);
+      alert("Download started. A backup copy is also saved to your account.");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "export failed");
     } finally {
@@ -517,8 +517,9 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
       revealNodes();
       await waitFrames(2);
       updateInternalsRef.current?.(detail.nodes.map((node) => node.id));
+      void flowRef.current?.fitView({ padding: 0.25, duration: 300 });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "fmt failed");
+      setError(err instanceof ApiError ? err.message : "Could not arrange notes");
     } finally {
       setBusy(false);
     }
@@ -823,7 +824,7 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
           onClick={() => void onAddNode({ focus: true })}
           title="N"
         >
-          Add node
+          Add note
         </button>
         <button
           className="btn secondary"
@@ -832,7 +833,7 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
           onClick={() => void addChildFromActiveParent()}
           title="Tab"
         >
-          Add child
+          Link note
         </button>
         <button
           className="btn secondary"
@@ -841,7 +842,7 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
           onClick={() => void onCascadeSelect()}
           title="C"
         >
-          Cascade select
+          Select branch
         </button>
         <button
           className="btn secondary"
@@ -859,16 +860,16 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
           onClick={() => void onDeleteSelection(true)}
           title="⇧⌫"
         >
-          Cascade delete
+          Delete branch
         </button>
         <button
           className="btn secondary"
           type="button"
           disabled={busy || nodeRecords.length === 0}
           onClick={() => void onFmt()}
-          title="A"
+          title="A — arrange notes"
         >
-          Fmt
+          Arrange
         </button>
         <button
           className="btn accent"
@@ -877,7 +878,7 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
           onClick={() => void onExport()}
           title="⌘E"
         >
-          Export
+          Download
         </button>
         <button className="btn ghost" type="button" onClick={onLogout}>
           Log out
@@ -961,30 +962,33 @@ export function GraphEditor({ graphId, onBack, onLogout }: Props) {
         >
           {error ? <p className="error-text">{error}</p> : null}
           <p className="muted" style={{ marginTop: 0 }}>
-            {graph ? `${nodeRecords.length} nodes · ${edgeRecords.length} edges` : "Loading…"}
+            {graph ? `${nodeRecords.length} notes · ${edgeRecords.length} links` : "Loading…"}
           </p>
           {activeParentId ? (
-            <p className="mono" style={{ fontSize: "0.8rem", color: "var(--accent)" }}>
-              Parent ready · Tab adds child
+            <p style={{ fontSize: "0.85rem", color: "var(--accent)", margin: "0 0 1rem" }}>
+              Tab adds a linked note from here
             </p>
           ) : (
-            <p className="mono" style={{ fontSize: "0.8rem" }}>
-              F / ↑↓←→ to focus a parent
+            <p className="muted" style={{ fontSize: "0.85rem", margin: "0 0 1rem" }}>
+              Focus a note to start linking
             </p>
           )}
-          <div className="mono muted" style={{ fontSize: "0.78rem", lineHeight: 1.7 }}>
-            <div>F / ↑↓←→ · focus parent</div>
-            <div>Tab · linked child</div>
-            <div>N · free node</div>
-            <div>Enter · edit · md body</div>
+          <p className="muted" style={{ fontSize: "0.78rem", margin: "0 0 0.35rem" }}>
+            Shortcuts
+          </p>
+          <div className="muted" style={{ fontSize: "0.78rem", lineHeight: 1.7 }}>
+            <div>F / arrows · focus a note</div>
+            <div>Tab · linked note</div>
+            <div>N · standalone note</div>
+            <div>Enter · edit · body text</div>
             <div>Esc · clear focus</div>
-            <div>⇧↑↓←→ · nudge</div>
-            <div>L · link nodes</div>
-            <div>C · cascade select</div>
-            <div>⌫ / ⇧⌫ · delete</div>
-            <div>A · fmt tree</div>
-            <div>⌘E · export</div>
-            <div>⌘[ · notes list</div>
+            <div>Shift + arrows · nudge</div>
+            <div>L · connect notes</div>
+            <div>C · select branch</div>
+            <div>Delete · remove selection</div>
+            <div>A · arrange notes</div>
+            <div>⌘E · download backup</div>
+            <div>⌘[ · back to notes</div>
           </div>
         </aside>
       </div>

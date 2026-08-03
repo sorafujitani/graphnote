@@ -1,5 +1,6 @@
 export type Graph = {
   id: string;
+  owner_id: string;
   title: string;
   created_at: string;
   updated_at: string;
@@ -42,4 +43,18 @@ export type GraphExport = {
   graph: Graph;
   nodes: NodeRecord[];
   edges: EdgeRecord[];
+};
+
+export type PublicUser = {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+};
+
+export type ApiTokenMeta = {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at: string | null;
 };

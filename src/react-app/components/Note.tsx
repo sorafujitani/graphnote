@@ -182,7 +182,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
           className="nodrag nopan nowheel note-body-preview"
           data-node-id={id}
           data-node-field="body"
-          aria-label={`Markdown body for node ${id}. Click to edit.`}
+          aria-label={`Body for ${id}. Click to edit.`}
           onMouseDown={stopMouse}
           onClick={(event) => {
             stopMouse(event);

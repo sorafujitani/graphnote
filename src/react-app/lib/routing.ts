@@ -1,7 +1,16 @@
-export type AppRoute = { name: "list" } | { name: "editor"; graphId: string };
+export type AppRoute =
+  | { name: "list" }
+  | { name: "editor"; graphId: string }
+  | { name: "terms" }
+  | { name: "privacy" }
+  | { name: "tokens" };
 
-/** `/g/<graphId>` opens the editor; everything else is the notes list. */
+/** Path → screen. Legal pages are public; editor/list require auth at App level. */
 export function parseRoute(pathname: string): AppRoute {
+  if (pathname === "/terms" || pathname === "/terms/") return { name: "terms" };
+  if (pathname === "/privacy" || pathname === "/privacy/") return { name: "privacy" };
+  if (pathname === "/integrations" || pathname === "/integrations/") return { name: "tokens" };
+  if (pathname === "/tokens" || pathname === "/tokens/") return { name: "tokens" };
   const match = /^\/g\/([^/]+)\/?$/.exec(pathname);
   if (!match?.[1]) return { name: "list" };
   try {
@@ -13,6 +22,9 @@ export function parseRoute(pathname: string): AppRoute {
 
 function pathFor(route: AppRoute): string {
   if (route.name === "editor") return `/g/${encodeURIComponent(route.graphId)}`;
+  if (route.name === "terms") return "/terms";
+  if (route.name === "privacy") return "/privacy";
+  if (route.name === "tokens") return "/integrations";
   return "/";
 }
 

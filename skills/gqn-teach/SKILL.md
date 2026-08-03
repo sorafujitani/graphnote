@@ -164,7 +164,7 @@ Body bad: multi-paragraph summaries; link dumps without a cue; unofficial SEO sc
 3. **Outline** — 1 root → 3–6 L1 facets → 2–5 L2 units each. Recurse to L3 only when Child test still demands a node. Prefer a balanced bush over deep or wide extremes.
 4. **Wording pass** — rewrite every planned title into plain language (Language section).
 5. **Body pass** — for each leaf / key concept: 0–2 bullets (cue) + official link when available. Anything that failed “necessary as a node” goes here. Skip structural-only nodes.
-6. **Auth** — `gqn whoami` / `gqn --prod whoami`; login if needed. Never print passwords.
+6. **Auth** — `gqn whoami` / `gqn --prod whoami`; if unauthorized, set API token (`gqn config set-token`). Never print tokens.
 7. **Create graph + root** (root body: source URL and/or primary official overview)
 
 ```bash

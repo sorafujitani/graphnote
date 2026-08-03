@@ -431,3 +431,79 @@ button:disabled {
 .note-md input[type="checkbox"] {
   margin-right: 0.35em;
 }
+
+.landing {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  overflow: hidden;
+}
+
+.landing-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 10%, rgba(96, 165, 250, 0.22), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 90% 80%, rgba(56, 120, 200, 0.12), transparent 50%),
+    linear-gradient(165deg, #121a26 0%, var(--bg) 55%, #070a0f 100%);
+  z-index: 0;
+}
+
+.landing-main {
+  position: relative;
+  z-index: 1;
+  width: min(40rem, 100%);
+  display: grid;
+  gap: 1rem;
+}
+
+.landing-brand {
+  margin: 0;
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.landing-title {
+  margin: 0;
+  font-size: clamp(1.15rem, 3vw, 1.5rem);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.landing-lead {
+  margin: 0;
+  max-width: 34rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.landing-actions {
+  margin-top: 0.5rem;
+}
+
+.landing-legal {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+}
+
+button.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.legal-prose p {
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+  margin: 0;
+}

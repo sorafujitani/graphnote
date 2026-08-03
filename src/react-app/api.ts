@@ -1,10 +1,12 @@
 import type {
+  ApiTokenMeta,
   CascadeResult,
   EdgeRecord,
   Graph,
   GraphDetail,
   GraphExport,
   NodeRecord,
+  PublicUser,
 } from "../shared/types";
 
 export class ApiError extends Error {
@@ -17,7 +19,7 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
-  if (!headers.has("Content-Type")) {
+  if (!headers.has("Content-Type") && init?.body) {
     headers.set("Content-Type", "application/json");
   }
   const res = await fetch(path, {
@@ -35,18 +37,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  me: () => request<{ authenticated: boolean }>("/api/auth/me"),
-  login: (password: string) =>
-    request<{ ok: boolean }>("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ password }),
-    }),
-  logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
+  me: () => request<{ authenticated: boolean; user: PublicUser }>("/api/me"),
   listGraphs: () => request<{ graphs: Graph[] }>("/api/graphs"),
   createGraph: (title: string) =>
-    request<{ graph: Graph }>("/api/graphs", {
+    request<GraphDetail>("/api/graphs", {
       method: "POST",
       body: JSON.stringify({ title }),
+    }),
+  importGraph: (payload: GraphExport) =>
+    request<GraphDetail>("/api/graphs/import", {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
   getGraph: (graphId: string) => request<GraphDetail>(`/api/graphs/${graphId}`),
   renameGraph: (graphId: string, title: string) =>
@@ -70,7 +71,7 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(input),
     }),
-  deleteNodes: (graphId: string, ids: string[], cascade: boolean) =>
+  deleteNodes: (graphId: string, ids: string[], cascade = false) =>
     request<{ deletedNodeIds: string[]; deletedEdgeIds: string[] }>(
       `/api/graphs/${graphId}/nodes/delete`,
       {
@@ -98,4 +99,13 @@ export const api = {
     request<{ export: GraphExport; r2Key: string }>(`/api/graphs/${graphId}/export`, {
       method: "POST",
     }),
+  listTokens: () => request<{ tokens: ApiTokenMeta[] }>("/api/tokens"),
+  createToken: (name: string) =>
+    request<{ token: string; meta: ApiTokenMeta }>("/api/tokens", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  deleteToken: (tokenId: string) =>
+    request<{ ok: boolean }>(`/api/tokens/${tokenId}`, { method: "DELETE" }),
+  deleteAccount: () => request<{ ok: boolean }>("/api/account", { method: "DELETE" }),
 };

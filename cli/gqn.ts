@@ -3,7 +3,7 @@
  * JSON on stdout by default. Errors as {"error":"..."} with non-zero exit.
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -17,12 +17,12 @@ import type {
 
 type ConfigFile = {
   url?: string;
-  password?: string;
+  token?: string;
 };
 
 type Config = {
   url: string;
-  password: string;
+  token: string;
 };
 
 type FlagValue = string | true;
@@ -42,7 +42,7 @@ type CreateNodeInput = {
 
 type UpdateNodeInput = Partial<Pick<NodeRecord, "title" | "body" | "x" | "y">>;
 
-const PROD_URL = "https://graphnote.fujitanisora0414.workers.dev";
+const PROD_URL = "https://graphnote.app";
 const LOCAL_URL = "http://127.0.0.1:5173";
 const PROD_CONFIG_DIR = join(homedir(), ".config", "graphnote");
 const LOCAL_CONFIG_DIR = join(homedir(), ".config", "graphnote-local");
@@ -62,10 +62,6 @@ function configDir(): string {
 
 function configPath(): string {
   return join(configDir(), "config.json");
-}
-
-function cookiePath(): string {
-  return join(configDir(), "cookie");
 }
 
 function ensureConfigDir(): void {
@@ -90,7 +86,7 @@ function loadConfig(): Config {
       /\/$/,
       "",
     ),
-    password: process.env.GRAPHNOTE_PASSWORD || file.password || "",
+    token: process.env.GRAPHNOTE_TOKEN || file.token || "",
   };
 }
 
@@ -99,28 +95,12 @@ function saveConfig(patch: Partial<ConfigFile>): Config {
   const file = readConfigFile();
   const next: Config = {
     url: (patch.url ?? file.url ?? DEFAULT_URL).replace(/\/$/, ""),
-    password: patch.password ?? file.password ?? "",
+    token: patch.token ?? file.token ?? "",
   };
   writeFileSync(configPath(), `${JSON.stringify(next, null, 2)}\n`, {
     mode: 0o600,
   });
   return next;
-}
-
-function loadCookie(): string {
-  const path = cookiePath();
-  if (!existsSync(path)) return "";
-  return readFileSync(path, "utf8").trim();
-}
-
-function saveCookie(value: string): void {
-  ensureConfigDir();
-  writeFileSync(cookiePath(), `${value}\n`, { mode: 0o600 });
-}
-
-function clearCookie(): void {
-  const path = cookiePath();
-  if (existsSync(path)) unlinkSync(path);
 }
 
 /** Apply global --local / --prod / --url. Flags win over env and config. */
@@ -203,24 +183,6 @@ function flag(flags: Flags, ...names: string[]): FlagValue | undefined {
   return undefined;
 }
 
-function extractSessionCookie(setCookieHeaders: string[] | string | null): string {
-  const headers = Array.isArray(setCookieHeaders)
-    ? setCookieHeaders
-    : setCookieHeaders
-      ? [setCookieHeaders]
-      : [];
-  for (const header of headers) {
-    const match = /(?:^|,\s*)gn_session=([^;]+)/.exec(header);
-    if (match?.[1]) return match[1];
-  }
-  for (const header of headers) {
-    if (header.startsWith("gn_session=")) {
-      return header.slice("gn_session=".length).split(";")[0] ?? "";
-    }
-  }
-  return "";
-}
-
 async function api<T>(
   method: string,
   path: string,
@@ -228,11 +190,10 @@ async function api<T>(
   options: { allowUnauthorized?: boolean } = {},
 ): Promise<T> {
   const { allowUnauthorized = false } = options;
-  const { url } = loadConfig();
-  const cookie = loadCookie();
+  const { url, token } = loadConfig();
   const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (cookie) headers.Cookie = `gn_session=${cookie}`;
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${url}${path}`, {
     method,
@@ -240,13 +201,6 @@ async function api<T>(
     body: body === undefined ? undefined : JSON.stringify(body),
     redirect: "manual",
   });
-
-  const setCookie =
-    typeof res.headers.getSetCookie === "function"
-      ? res.headers.getSetCookie()
-      : res.headers.get("set-cookie");
-  const next = extractSessionCookie(setCookie);
-  if (next) saveCookie(next);
 
   const text = await res.text();
   let data: unknown = null;
@@ -260,7 +214,10 @@ async function api<T>(
 
   if (!res.ok) {
     if (res.status === 401 && !allowUnauthorized) {
-      fail("unauthorized — run: gqn login", 2);
+      fail(
+        "unauthorized — create an API token in the web UI, then: gqn config set-token <token>",
+        2,
+      );
     }
     const errBody = data as ApiErrorBody | null;
     const message =
@@ -271,18 +228,6 @@ async function api<T>(
   return data as T;
 }
 
-async function ensureLogin(explicitPassword?: string): Promise<{ ok: true; url: string }> {
-  const cfg = loadConfig();
-  const password = explicitPassword || cfg.password;
-  if (!password) {
-    fail(
-      "password required — set GRAPHNOTE_PASSWORD, run gqn config set-password, or gqn login --password ...",
-    );
-  }
-  await api<{ ok: boolean }>("POST", "/api/auth/login", { password }, { allowUnauthorized: true });
-  return { ok: true, url: cfg.url };
-}
-
 const HELP = `gqn — CLI for graphnote API
 
 Target (default: production):
@@ -290,18 +235,18 @@ Target (default: production):
   --local                ${LOCAL_URL}
   --url <url>            arbitrary base URL
   GRAPHNOTE_URL          env override (below flags)
-  ~/.config/graphnote/   prod config + cookie
+  ~/.config/graphnote/   prod config + token
   ~/.config/graphnote-local/  used with --local
 
-Auth:
-  gqn login [--password <pw>]
-  gqn logout
+Auth (API token from web UI → API tokens):
+  gqn config set-token <token>
   gqn whoami
+  gqn logout                  # clears saved token
 
 Config:
   gqn config show
   gqn config set-url <url>
-  gqn config set-password <pw>
+  gqn config set-token <token>
 
 Graphs:
   gqn graphs list
@@ -310,6 +255,7 @@ Graphs:
   gqn graphs rename <graphId> <title>
   gqn graphs delete <graphId>
   gqn graphs export <graphId>
+  gqn graphs import <file.json>
   gqn graphs fmt <graphId>
 
 Nodes:
@@ -327,9 +273,9 @@ Other:
   gqn health
 
 Examples:
+  gqn config set-token gqn_…
   gqn graphs list
   gqn --local graphs list
-  gqn --prod login
 `;
 
 async function cmdGraphs(args: string[], flags: Flags): Promise<unknown> {
@@ -345,7 +291,7 @@ async function cmdGraphs(args: string[], flags: Flags): Promise<unknown> {
         rest.join(" ").trim() ||
         (typeof titled === "string" ? titled : undefined) ||
         "Untitled note";
-      return api<{ graph: Graph }>("POST", "/api/graphs", { title });
+      return api<GraphDetail>("POST", "/api/graphs", { title });
     }
     case "get":
     case "show": {
@@ -373,6 +319,13 @@ async function cmdGraphs(args: string[], flags: Flags): Promise<unknown> {
       if (!id) fail("usage: gqn graphs export <graphId>");
       return api<{ export: GraphExport; r2Key: string }>("POST", `/api/graphs/${id}/export`);
     }
+    case "import": {
+      const file = rest[0];
+      if (!file) fail("usage: gqn graphs import <file.json>");
+      if (!existsSync(file)) fail(`file not found: ${file}`);
+      const payload = JSON.parse(readFileSync(file, "utf8")) as GraphExport;
+      return api<GraphDetail>("POST", "/api/graphs/import", payload);
+    }
     case "fmt":
     case "format": {
       const id = rest[0];
@@ -380,7 +333,7 @@ async function cmdGraphs(args: string[], flags: Flags): Promise<unknown> {
       return api<GraphDetail>("POST", `/api/graphs/${id}/fmt`);
     }
     default:
-      fail("usage: gqn graphs <list|create|get|rename|delete|export|fmt>");
+      fail("usage: gqn graphs <list|create|get|rename|delete|export|import|fmt>");
   }
 }
 
@@ -524,52 +477,48 @@ async function main(): Promise<void> {
           const cfg = loadConfig();
           print({
             url: cfg.url,
-            password: cfg.password ? "***" : "",
+            token: cfg.token ? "***" : "",
             configPath: configPath(),
-            cookiePath: cookiePath(),
-            hasCookie: Boolean(loadCookie()),
+            hasToken: Boolean(cfg.token),
           });
           return;
         }
         if (sub === "set-url") {
-          // Prefer positional arg; global --url is the target override, not set-url value.
           const url = cfgArgs[0];
           if (!url) fail("usage: gqn config set-url <url>");
           const saved = saveConfig({ url: url.replace(/\/$/, "") });
           print({ ok: true, url: saved.url });
           return;
         }
-        if (sub === "set-password") {
-          const pwFlag = flag(restFlags, "password");
-          const password = cfgArgs[0] || (typeof pwFlag === "string" ? pwFlag : "");
-          if (!password) {
-            fail("usage: gqn config set-password <password>");
-          }
-          saveConfig({ password });
+        if (sub === "set-token") {
+          const tokenFlag = flag(restFlags, "token");
+          const token = cfgArgs[0] || (typeof tokenFlag === "string" ? tokenFlag : "");
+          if (!token) fail("usage: gqn config set-token <token>");
+          saveConfig({ token });
           print({ ok: true });
           return;
         }
-        fail("usage: gqn config <show|set-url|set-password>");
+        fail("usage: gqn config <show|set-url|set-token>");
       }
       case "login": {
-        const password = flag(restFlags, "password", "p") || cmdArgs[0];
-        print(await ensureLogin(typeof password === "string" ? password : undefined));
-        return;
+        fail(
+          "use Google sign-in in the web UI, create an API token, then: gqn config set-token <token>",
+        );
       }
       case "logout": {
-        try {
-          await api("POST", "/api/auth/logout", undefined, { allowUnauthorized: true });
-        } catch {
-          /* ignore */
-        }
-        clearCookie();
+        saveConfig({ token: "" });
         print({ ok: true });
         return;
       }
       case "whoami": {
-        const data = await api<{ authenticated: boolean }>("GET", "/api/auth/me", undefined, {
-          allowUnauthorized: true,
-        });
+        const data = await api<{ authenticated: boolean; user?: unknown }>(
+          "GET",
+          "/api/me",
+          undefined,
+          {
+            allowUnauthorized: true,
+          },
+        );
         print({ ...data, url: loadConfig().url });
         return;
       }

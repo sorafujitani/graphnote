@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "graphnote",
+  "workers_dev": true,
   "main": "./src/worker/index.ts",
   "compatibility_date": "2025-10-08",
   "compatibility_flags": ["nodejs_compat"],
@@ -25,6 +26,15 @@
     {
       "binding": "EXPORTS",
       "bucket_name": "graphnote-exports"
+    }
+  ],
+  "vars": {
+    "BETTER_AUTH_URL": "https://graphnote.app"
+  },
+  "routes": [
+    {
+      "pattern": "graphnote.app",
+      "custom_domain": true
     }
   ]
 }

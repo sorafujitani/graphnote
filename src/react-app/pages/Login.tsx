@@ -1,63 +1,61 @@
-import { useState, type FormEvent } from "react";
-import { ApiError, api } from "../api";
+import { useState } from "react";
+import { authClient } from "../lib/auth-client";
 
-type Props = { onSuccess: () => void };
+type Props = {
+  onOpenLegal: (page: "terms" | "privacy") => void;
+};
 
-export function Login({ onSuccess }: Props) {
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+export function Login({ onOpenLegal }: Props) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function onGoogle() {
     setBusy(true);
     setError(null);
     try {
-      await api.login(password);
-      onSuccess();
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: window.location.pathname || "/",
+      });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "login failed");
-    } finally {
+      setError(err instanceof Error ? err.message : "sign-in failed");
       setBusy(false);
     }
   }
 
   return (
-    <div className="app-shell" style={{ display: "grid", placeItems: "center", padding: "2rem" }}>
-      <form
-        className="panel"
-        onSubmit={onSubmit}
-        style={{
-          width: "min(420px, 100%)",
-          padding: "2rem",
-          display: "grid",
-          gap: "1.25rem",
-        }}
-      >
-        <div>
-          <p className="muted" style={{ margin: "0 0 0.35rem" }}>
-            graphnote
-          </p>
-          <h1 style={{ margin: 0, fontSize: "1.8rem" }}>Sign in</h1>
-          <p className="muted" style={{ margin: "0.5rem 0 0" }}>
-            Personal graph notes on Cloudflare Workers.
-          </p>
+    <div className="app-shell landing">
+      <div className="landing-bg" aria-hidden />
+      <main className="landing-main">
+        <p className="landing-brand">graphnote</p>
+        <h1 className="landing-title">Connect your ideas on a canvas</h1>
+        <p className="landing-lead">
+          Personal notes that follow how you think — short cues, links between topics, and room to
+          grow without turning into long documents.
+        </p>
+        <div className="landing-actions">
+          <button
+            className="btn accent"
+            type="button"
+            disabled={busy}
+            onClick={() => void onGoogle()}
+          >
+            {busy ? "Signing in…" : "Sign in with Google"}
+          </button>
         </div>
-        <label className="field">
-          <span>Password</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoFocus
-            required
-          />
-        </label>
-        {error ? <p className="error-text">{error}</p> : null}
-        <button className="btn accent" type="submit" disabled={busy}>
-          {busy ? "Signing in…" : "Enter"}
-        </button>
-      </form>
+        {error ? <p className="error">{error}</p> : null}
+        <p className="landing-legal muted">
+          By continuing you agree to the{" "}
+          <button type="button" className="linkish" onClick={() => onOpenLegal("terms")}>
+            Terms
+          </button>{" "}
+          and{" "}
+          <button type="button" className="linkish" onClick={() => onOpenLegal("privacy")}>
+            Privacy
+          </button>
+          .
+        </p>
+      </main>
     </div>
   );
 }

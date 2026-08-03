@@ -1,16 +1,19 @@
-export type LayoutGraphNode = { id: string };
+export type LayoutGraphNode = { id: string; height?: number };
 export type LayoutGraphEdge = { source_id: string; target_id: string };
 
 export type TreeLayoutOptions = {
   x0?: number;
   y0?: number;
   dx?: number;
+  /** Default node height when a node has no `height`. */
   dy?: number;
+  /** Vertical gap between siblings and subtrees. */
+  gap?: number;
 };
 
 /**
  * Left-to-right tidy tree layout.
- * Parents sit at the vertical center of their children so edges stay short.
+ * Parents sit at the vertical center of their children; spacing respects node height.
  */
 export function layoutTree(
   nodes: LayoutGraphNode[],
@@ -19,10 +22,12 @@ export function layoutTree(
 ): Map<string, { x: number; y: number }> {
   const x0 = options.x0 ?? 80;
   const y0 = options.y0 ?? 80;
-  const dx = options.dx ?? 320;
-  const dy = options.dy ?? 170;
+  const dx = options.dx ?? 340;
+  const dy = options.dy ?? 120;
+  const gap = options.gap ?? 32;
 
   const ids = new Set(nodes.map((node) => node.id));
+  const heights = new Map(nodes.map((node) => [node.id, node.height ?? dy]));
   const children = new Map<string, string[]>();
   const incoming = new Map<string, number>();
   for (const id of ids) {
@@ -52,34 +57,49 @@ export function layoutTree(
   }
   sortIds(roots);
 
+  function heightOf(id: string): number {
+    return heights.get(id) ?? dy;
+  }
+
+  /** Returns y coordinate just below this subtree (exclusive of trailing gap). */
   function place(id: string, depth: number, top: number): number {
+    const h = heightOf(id);
     const kids = children.get(id) ?? [];
+
     if (kids.length === 0) {
       positions.set(id, { x: x0 + depth * dx, y: top });
-      return top + dy;
+      return top + h;
     }
 
-    let cursor = top;
-    const childYs: number[] = [];
+    let childTop = top;
+    const childCenters: number[] = [];
     for (const kid of kids) {
-      cursor = place(kid, depth + 1, cursor);
-      childYs.push(positions.get(kid)!.y);
+      childTop = place(kid, depth + 1, childTop) + gap;
     }
-    const mid = (Math.min(...childYs) + Math.max(...childYs)) / 2;
-    positions.set(id, { x: x0 + depth * dx, y: mid });
-    return cursor;
+    const blockBottom = childTop - gap;
+
+    for (const kid of kids) {
+      const kidPos = positions.get(kid)!;
+      childCenters.push(kidPos.y + heightOf(kid) / 2);
+    }
+
+    const midCenter = (Math.min(...childCenters) + Math.max(...childCenters)) / 2;
+    const parentTop = midCenter - h / 2;
+    positions.set(id, { x: x0 + depth * dx, y: parentTop });
+
+    return Math.max(blockBottom, parentTop + h);
   }
 
   let forestTop = y0;
   for (const root of roots) {
-    forestTop = place(root, 0, forestTop) + dy * 0.25;
+    forestTop = place(root, 0, forestTop) + gap;
   }
 
   // Any node missed (cycles): park below.
   for (const id of ids) {
     if (!positions.has(id)) {
       positions.set(id, { x: x0, y: forestTop });
-      forestTop += dy;
+      forestTop += heightOf(id) + gap;
     }
   }
 
