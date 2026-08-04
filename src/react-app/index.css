@@ -1,113 +1,125 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500&display=swap");
+@import "tailwindcss";
 @import "@xyflow/react/dist/style.css";
 
+@theme {
+  --font-sans: "DM Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  --color-canvas: #0b0f15;
+  --color-surface: #121821;
+  --color-surface-soft: #1a222e;
+  --color-ink: #f4f7fb;
+  --color-muted: #94a3b8;
+  --color-line: #2a3442;
+  --color-accent: #60a5fa;
+  --color-accent-soft: #1a2a3d;
+  --color-danger: #f87171;
+  --color-edge: #64748b;
+  --color-edge-hot: #60a5fa;
+
+  --shadow-panel: 0 12px 40px rgb(0 0 0 / 35%);
+}
+
 :root {
-  --bg: #0b0f15;
-  --bg-elevated: #121821;
-  --bg-soft: #1a222e;
-  --ink: #f4f7fb;
-  --muted: #94a3b8;
-  --line: #2a3442;
-  --accent: #60a5fa;
-  --accent-soft: #1a2a3d;
-  --node-bg: #121821;
-  --node-bg-active: #1a2a3d;
-  --danger: #f87171;
-  --edge: #64748b;
-  --edge-hot: #60a5fa;
-  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
-  font-family: "DM Sans", sans-serif;
-  line-height: 1.45;
-  color: var(--ink);
-  background: var(--bg);
   color-scheme: dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
-* {
-  box-sizing: border-box;
+@layer base {
+  html,
+  body,
+  #root {
+    @apply m-0 h-full min-h-full;
+  }
+
+  body {
+    @apply min-w-80 bg-canvas font-sans text-ink;
+    line-height: 1.45;
+    background-image:
+      radial-gradient(ellipse at top, rgb(56 120 200 / 16%), transparent 45%),
+      radial-gradient(circle at 80% 0%, rgb(96 165 250 / 6%), transparent 30%),
+      linear-gradient(180deg, #101722 0%, var(--color-canvas) 42%, #080b10 100%);
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    @apply cursor-pointer disabled:cursor-not-allowed disabled:opacity-[0.55];
+  }
 }
 
-html,
-body,
-#root {
-  margin: 0;
-  min-height: 100%;
-  height: 100%;
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-line bg-surface shadow-panel;
+  }
+
+  .btn {
+    @apply whitespace-nowrap rounded-[10px] border border-transparent bg-ink px-[0.9rem] py-[0.55rem] text-canvas transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60;
+  }
+
+  .btn-secondary {
+    @apply border-line bg-surface-soft text-ink hover:border-accent/50 hover:bg-accent-soft;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-ink hover:bg-surface-soft;
+  }
+
+  .btn-danger {
+    @apply border-red-800 bg-red-900 text-red-200 hover:bg-red-800;
+  }
+
+  .btn-accent {
+    @apply bg-accent text-[#0b1220] hover:bg-blue-300;
+  }
+
+  .input-surface {
+    @apply min-w-0 rounded-[10px] border border-line bg-surface-soft px-[0.8rem] py-[0.65rem] text-ink outline-none placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent/20;
+  }
+
+  .landing-bg {
+    background:
+      radial-gradient(ellipse 80% 50% at 20% 10%, rgb(96 165 250 / 22%), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 90% 80%, rgb(56 120 200 / 12%), transparent 50%),
+      linear-gradient(165deg, #121a26 0%, var(--color-canvas) 55%, #070a0f 100%);
+  }
 }
 
-body {
-  min-width: 320px;
-  background:
-    radial-gradient(ellipse at top, rgba(56, 120, 200, 0.16), transparent 45%),
-    radial-gradient(circle at 80% 0%, rgba(96, 165, 250, 0.06), transparent 30%),
-    linear-gradient(180deg, #101722 0%, var(--bg) 42%, #080b10 100%);
-}
-
-button,
-input,
-textarea {
-  font: inherit;
-  color: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.app-shell {
-  min-height: 100vh;
-  height: 100%;
-}
-
+/* React Flow is a third-party geometry boundary. These selectors intentionally
+   stay in CSS; utility classes cannot target its generated DOM and pseudo-elements. */
 .react-flow {
   width: 100%;
   height: 100%;
   background: transparent;
+  --xy-edge-stroke: var(--color-edge);
+  --xy-edge-stroke-width: 1;
+  --xy-edge-stroke-selected: var(--color-edge-hot);
+  --xy-minimap-background-color: var(--color-surface);
+  --xy-attribution-background-color: transparent;
 }
 
 .react-flow__node {
+  /* React Flow hides nodes inline until it has measured them. */
   visibility: visible !important;
-  background: transparent !important;
 }
 
 .react-flow__node-note {
-  /* opaque card lives inside; keep RF wrapper from tinting through */
   isolation: isolate;
-  /* long wrapped titles/URLs must not be clipped into a scrollport */
-  overflow: visible !important;
 }
 
 .react-flow__edges {
   z-index: 1;
 }
 
-.react-flow__edge-path {
-  stroke: var(--edge) !important;
-  stroke-width: 1 !important;
-}
-
-.react-flow__edge.selected .react-flow__edge-path,
-.react-flow__edge:focus .react-flow__edge-path {
-  stroke: var(--edge-hot) !important;
-  stroke-width: 1.5 !important;
-}
-
-.react-flow__arrowhead polyline,
-.react-flow__arrowhead path {
-  fill: var(--edge) !important;
-  stroke: var(--edge) !important;
-}
-
-/* Grab band down the whole card edge — a 9px dot at mid-height is unaimable.
-   Half outside the card, half over its side padding, so it never covers text. */
+/* Grab band down the whole card edge — a 9px dot at mid-height is unaimable. */
 .react-flow__handle.note-port {
   top: 0;
   bottom: 0;
@@ -142,21 +154,21 @@ button:disabled {
   width: 9px;
   height: 9px;
   margin: -5px 0 0 -5px;
-  border: 1px solid var(--bg);
+  border: 1px solid var(--color-canvas);
   border-radius: 50%;
-  background: var(--muted);
+  background: var(--color-muted);
 }
 
 .react-flow__node-note:hover .note-port {
-  background: rgba(96, 165, 250, 0.14);
+  background: rgb(96 165 250 / 14%);
 }
 
 .react-flow__node-note:hover .note-port::before {
-  background: var(--accent);
+  background: var(--color-accent);
 }
 
 .react-flow__handle.note-port:hover {
-  background: rgba(96, 165, 250, 0.28);
+  background: rgb(96 165 250 / 28%);
 }
 
 .react-flow__handle.note-port:hover::before {
@@ -165,8 +177,7 @@ button:disabled {
   margin: -6px 0 0 -6px;
 }
 
-/* Card-sized drop zone. React Flow only enables pointer events on it while a
-   connection is being dragged (.connectionindicator), so editing stays intact. */
+/* Card-sized target. React Flow enables it only while a connection is dragged. */
 .react-flow__handle.note-drop-zone {
   inset: 0;
   width: auto;
@@ -181,169 +192,55 @@ button:disabled {
 }
 
 .react-flow__handle.note-drop-zone:hover {
-  background: rgba(96, 165, 250, 0.14);
-  border-color: var(--accent);
+  background: rgb(96 165 250 / 14%);
+  border-color: var(--color-accent);
 }
 
 .react-flow__controls {
-  background: var(--bg-elevated);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
+  @apply overflow-hidden rounded-[10px] border border-line bg-surface shadow-panel;
 }
 
 .react-flow__controls-button {
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--line);
-  fill: var(--ink);
+  @apply border-b border-line bg-surface fill-ink;
 }
 
 .react-flow__controls-button:hover {
-  background: var(--bg-soft);
+  @apply bg-surface-soft;
 }
 
 .react-flow__controls-button svg {
-  fill: var(--ink);
+  fill: var(--color-ink);
 }
 
 .react-flow__minimap {
-  background: var(--bg-elevated) !important;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
+  @apply overflow-hidden rounded-[10px] border border-line;
 }
 
-.react-flow__attribution {
-  background: transparent !important;
-  color: var(--muted) !important;
+.react-flow__attribution a {
+  @apply text-muted;
 }
 
-.panel {
-  background: var(--bg-elevated);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  box-shadow: var(--shadow);
-}
-
-.btn {
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 0.55rem 0.9rem;
-  background: var(--ink);
-  color: var(--bg);
-}
-
-.btn.secondary {
-  background: var(--bg-soft);
-  color: var(--ink);
-  border-color: var(--line);
-}
-
-.btn.ghost {
-  background: transparent;
-  color: var(--ink);
-  border-color: transparent;
-}
-
-.btn.danger {
-  background: #7f1d1d;
-  color: #fecaca;
-  border-color: #991b1b;
-}
-
-.btn.accent {
-  background: var(--accent);
-  color: #0b1220;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.field input,
-.field textarea {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.65rem 0.8rem;
-  background: var(--bg-soft);
-  color: var(--ink);
-}
-
-.field input::placeholder,
-.field textarea::placeholder {
-  color: var(--muted);
-}
-
-.muted {
-  color: var(--muted);
-}
-
-.error-text {
-  color: var(--danger);
-  margin: 0;
-}
-
-.mono {
-  font-family: "IBM Plex Mono", monospace;
-}
-
-/* Unclipped frame around the card: handles and the parent badge hang outside it. */
+/* Note classes are stable hooks for React Flow and browser geometry tests. */
 .note-shell {
   position: relative;
   width: max-content;
 }
 
 .note-card {
-  position: relative;
-  box-sizing: border-box;
-  width: 280px;
-  max-width: 320px;
-  min-width: 200px;
-  background: var(--node-bg);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 0.65rem 0.75rem;
-  box-shadow: var(--shadow);
-  isolation: isolate;
-  overflow: hidden; /* clip only; content wraps — never scroll inside */
-}
-
-/* Drag-first card: a press meant as "move this note" must not land in a text
-   field, so the editors stay inert until the card holds focus. */
-.note-card:not(:focus-within) .note-title-editor,
-.note-card:not(:focus-within) .note-body-preview {
-  pointer-events: none;
-}
-
-.note-card:not(:focus-within) .note-md a {
-  pointer-events: auto;
+  @apply relative isolate w-[280px] min-w-[200px] max-w-[320px] overflow-hidden rounded-xl border border-line bg-surface px-3 py-[0.65rem] shadow-panel;
 }
 
 .note-card.is-active {
-  background: var(--node-bg-active);
-  border-color: var(--accent);
+  @apply border-accent bg-accent-soft;
 }
 
 .note-card.is-parent {
-  outline: 1px dashed var(--accent);
+  outline: 1px dashed var(--color-accent);
   outline-offset: 3px;
 }
 
 .note-parent-badge {
-  position: absolute;
-  top: -22px;
-  right: 0;
-  font-size: 0.68rem;
-  color: var(--accent);
-  background: var(--bg-elevated);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0.1rem 0.35rem;
-  pointer-events: none;
-  white-space: nowrap;
+  @apply pointer-events-none absolute -top-[22px] right-0 whitespace-nowrap rounded-md border border-line bg-surface px-[0.35rem] py-[0.1rem] font-mono text-[0.68rem] text-accent;
 }
 
 .note-title-editor,
@@ -363,52 +260,54 @@ button:disabled {
   white-space: pre-wrap;
 }
 
-.note-title-editor {
-  font-weight: 600;
-  font-size: 0.95rem;
-  line-height: 1.35;
-  color: var(--ink);
-  margin-bottom: 6px;
-  min-height: 1.35em;
-}
-
+/* Preview and editor must measure alike or the card jumps on double click. */
+.note-title,
 .note-body-preview {
   display: block;
   width: 100%;
   max-width: 100%;
   margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  text-align: left;
-  color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.45;
-  min-height: 2.8em;
-  cursor: text;
   overflow: hidden;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-.note-body-placeholder {
-  color: var(--muted);
-  opacity: 0.7;
+.note-title,
+.note-title-editor {
+  min-height: 1.35em;
+  margin-bottom: 6px;
+  color: var(--color-ink);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.note-body-preview {
+  min-height: 2.8em;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.note-placeholder {
+  @apply text-muted opacity-70;
 }
 
 .note-body-editor {
+  min-height: 4.2em;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   line-height: 1.45;
-  color: var(--muted);
-  font-family: "IBM Plex Mono", monospace;
-  min-height: 4.2em;
 }
 
+/* Markdown is generated content, so descendant selectors are the right boundary. */
 .note-md {
-  color: var(--muted);
+  max-width: 100%;
+  color: var(--color-muted);
   overflow-wrap: anywhere;
   word-break: break-word;
-  max-width: 100%;
 }
 
 .note-md > :first-child {
@@ -432,16 +331,24 @@ button:disabled {
 .note-md h3,
 .note-md h4 {
   margin: 0.4em 0 0.25em;
+  color: var(--color-ink);
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--ink);
   line-height: 1.3;
 }
 
 .note-md ul,
 .note-md ol {
-  padding-left: 1.2em;
   max-width: 100%;
+  padding-left: 1.2em;
+}
+
+.note-md ul {
+  list-style: disc;
+}
+
+.note-md ol {
+  list-style: decimal;
 }
 
 .note-md li {
@@ -454,39 +361,39 @@ button:disabled {
 }
 
 .note-md code {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.78em;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
+  border: 1px solid var(--color-line);
   border-radius: 4px;
   padding: 0.05em 0.3em;
-  color: var(--ink);
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 0.78em;
   overflow-wrap: anywhere;
   word-break: break-all;
   white-space: pre-wrap;
 }
 
 .note-md pre {
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.45em 0.55em;
   max-width: 100%;
   overflow: hidden;
-  white-space: pre-wrap;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 0.45em 0.55em;
+  background: var(--color-surface-soft);
   overflow-wrap: anywhere;
   word-break: break-all;
+  white-space: pre-wrap;
 }
 
 .note-md pre code {
   border: none;
-  background: transparent;
   padding: 0;
+  background: transparent;
   font-size: 0.78rem;
 }
 
 .note-md a {
-  color: var(--accent);
+  color: var(--color-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
   overflow-wrap: anywhere;
@@ -494,151 +401,29 @@ button:disabled {
 }
 
 .note-md blockquote {
-  border-left: 2px solid var(--line);
+  border-left: 2px solid var(--color-line);
   padding-left: 0.6em;
-  color: var(--muted);
+  color: var(--color-muted);
 }
 
 .note-md table {
-  border-collapse: collapse;
   width: 100%;
+  border-collapse: collapse;
   font-size: 0.75rem;
 }
 
 .note-md th,
 .note-md td {
-  border: 1px solid var(--line);
+  border: 1px solid var(--color-line);
   padding: 0.2em 0.35em;
 }
 
 .note-md hr {
-  border: none;
-  border-top: 1px solid var(--line);
   margin: 0.5em 0;
+  border: none;
+  border-top: 1px solid var(--color-line);
 }
 
 .note-md input[type="checkbox"] {
   margin-right: 0.35em;
-}
-
-.landing {
-  position: relative;
-  display: grid;
-  place-items: center;
-  padding: 2rem;
-  overflow: hidden;
-}
-
-.landing-bg {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 80% 50% at 20% 10%, rgba(96, 165, 250, 0.22), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 90% 80%, rgba(56, 120, 200, 0.12), transparent 50%),
-    linear-gradient(165deg, #121a26 0%, var(--bg) 55%, #070a0f 100%);
-  z-index: 0;
-}
-
-.landing-main {
-  position: relative;
-  z-index: 1;
-  width: min(40rem, 100%);
-  display: grid;
-  gap: 1rem;
-}
-
-.landing-brand {
-  margin: 0;
-  font-size: clamp(2.5rem, 8vw, 4.5rem);
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1;
-}
-
-.landing-title {
-  margin: 0;
-  font-size: clamp(1.15rem, 3vw, 1.5rem);
-  font-weight: 500;
-  color: var(--muted);
-}
-
-.landing-lead {
-  margin: 0;
-  max-width: 34rem;
-  color: var(--muted);
-  font-size: 1.05rem;
-}
-
-.landing-actions {
-  margin-top: 0.5rem;
-}
-
-.landing-legal {
-  margin: 0.5rem 0 0;
-  font-size: 0.9rem;
-}
-
-button.linkish {
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.legal-prose p {
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-.error {
-  color: var(--danger);
-  margin: 0;
-}
-
-.install-panel {
-  margin-top: 1.5rem;
-  padding: 1rem;
-  display: grid;
-  gap: 0.6rem;
-}
-
-.install-title {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.install-lead {
-  margin: 0;
-  font-size: 0.85rem;
-}
-
-.command-line-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.45rem 0.5rem 0.45rem 0.7rem;
-}
-
-.command-line-row code {
-  flex: 1;
-  font-size: 0.82rem;
-  overflow-x: auto;
-  white-space: nowrap;
-}
-
-.command-line-row .btn {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.78rem;
-  flex: none;
-}
-
-.command-line-hint {
-  margin: 0.3rem 0 0;
-  font-size: 0.76rem;
-  line-height: 1.5;
 }

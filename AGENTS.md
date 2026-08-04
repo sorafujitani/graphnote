@@ -58,13 +58,20 @@ never fail in a DOM shim, so the canvas is tested in real Chromium.
 
 Move and type are separate gestures, and the tests are the spec:
 
-- Dragging **anywhere** on the card moves the note. The title and body are
-  `pointer-events: none` until the card holds focus, so the press lands on the
-  card itself.
-- One click selects (canvas shortcuts keep working); a double click opens the
-  text the pointer landed on — above the title's bottom edge is the title,
-  below it is the body. `Enter` does the same from the keyboard.
-- Once a field has focus it behaves like a text field: `nodrag` keeps a
+- Dragging **anywhere** on the card moves the note. Title and body render as
+  plain `div` previews until they are being edited; a div takes no focus, so the
+  press stays with React Flow. Never make a preview focusable (no `input`,
+  `button`, or `tabindex`) — that is what used to leave the padding strip above
+  the title as the only drag surface.
+- One click selects (canvas shortcuts keep working); a double click on a preview
+  opens that preview's editor. `Enter` on the canvas does the same.
+- The canvas asks for an editor through node data (`data.editRequest` with a
+  nonce), never by querying the DOM for a field. A note focuses the editor as it
+  mounts, so no timer has to race the mount.
+- A preview and its editor must measure identically, or the card resizes on every
+  edit: keep the shared metrics in `index.css` (Chrome pads textareas by 2px —
+  hence `padding: 0`).
+- Once an editor has focus it behaves like a text field: `nodrag` keeps a
   selection drag from moving the note.
 - Linking starts from the 20px `.note-port` band down each side of the card, not
   from the dot. Dropping is card-wide (`.note-drop-zone`) plus
@@ -73,3 +80,6 @@ Move and type are separate gestures, and the tests are the spec:
   `stopImmediatePropagation` on the press. Use `onClick` (React Flow suppresses
   the click of a press that travelled past `nodeClickDistance`) or a native
   capture listener.
+- Theme React Flow through its `--xy-*` variables. `!important` on its selectors
+  also beats the per-edge inline styles, which is how the cascade highlight went
+  missing.

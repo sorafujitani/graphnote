@@ -1,3 +1,4 @@
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 import { playwright } from "vite-plus/test/browser-playwright";
@@ -18,7 +19,7 @@ export default defineConfig({
       {
         // Canvas behaviour: real layout, real hit testing, real pointer events.
         // happy-dom reports zero-sized boxes, so these belong in a browser.
-        plugins: [react()],
+        plugins: [tailwindcss(), react()],
         test: {
           name: "browser",
           include: ["src/**/*.browser.test.tsx"],

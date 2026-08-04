@@ -6,12 +6,12 @@ type Props = {
 export function Legal({ kind, onBack }: Props) {
   const title = kind === "terms" ? "Terms of Service" : "Privacy Policy";
   return (
-    <div className="app-shell" style={{ padding: "2rem", maxWidth: 720, margin: "0 auto" }}>
-      <button className="btn ghost" type="button" onClick={onBack}>
+    <div className="mx-auto h-full min-h-screen max-w-[720px] p-8">
+      <button className="btn btn-ghost" type="button" onClick={onBack}>
         Back
       </button>
-      <h1 style={{ marginTop: "1.5rem" }}>{title}</h1>
-      <p className="muted">Last updated: 2026-08-03 · Informal draft; not legal advice.</p>
+      <h1 className="mt-6 text-3xl font-bold">{title}</h1>
+      <p className="text-muted">Last updated: 2026-08-03 · Informal draft; not legal advice.</p>
       {kind === "terms" ? <TermsBody /> : <PrivacyBody />}
     </div>
   );
@@ -19,7 +19,7 @@ export function Legal({ kind, onBack }: Props) {
 
 function TermsBody() {
   return (
-    <div className="legal-prose">
+    <div className="space-y-4 [&_p]:leading-[1.6] [&_p]:text-muted">
       <p>
         graphnote is a personal note-taking service. You must be able to form a binding agreement
         and sign in with Google. You are responsible for the content you create and for keeping any
@@ -40,7 +40,7 @@ function TermsBody() {
 
 function PrivacyBody() {
   return (
-    <div className="legal-prose">
+    <div className="space-y-4 [&_p]:leading-[1.6] [&_p]:text-muted">
       <p>
         We collect your Google account identity (name, email, profile image) when you sign in, the
         notes you create, access keys you issue for integrations, and basic technical logs needed to

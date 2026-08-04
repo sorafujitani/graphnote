@@ -1,7 +1,7 @@
 /**
  * `fetch` stub shared by the browser tests.
  *
- * Stubbing the transport rather than mocking `../api` keeps `src/react-app/api.ts`
+ * Stubbing the transport rather than mocking the API module keeps `server/api.ts`
  * under test and gives every assertion the real request payloads.
  */
 

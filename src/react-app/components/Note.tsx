@@ -1,4 +1,4 @@
-import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
 import {
   useEffect,
   useRef,
@@ -11,18 +11,8 @@ import {
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useSyncedDraft } from "../lib/useSyncedDraft";
+import type { AppNode } from "../logic/graphEditorTypes";
 import { useNoteActions } from "./NoteActions";
-
-type NoteData = {
-  title: string;
-  body: string;
-  inCascade?: boolean;
-  /** mouse hover or keyboard focus parent candidate */
-  activeParent?: boolean;
-};
-
-/** Typed React Flow node for this app (xyflow `Node` + our note data). */
-export type AppNode = Node<NoteData, "note">;
 
 /** Card-sized target handle so drops don't have to land on the port dot. */
 const DROP_HANDLE_ID = "note-drop";
@@ -32,28 +22,16 @@ function stopMouse(event: MouseEvent) {
 }
 
 function MarkdownLink({ href, children }: ComponentPropsWithoutRef<"a">) {
+  // Following a link should not also select the note.
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      onMouseDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-    >
+    <a href={href} target="_blank" rel="noreferrer" onClick={stopMouse}>
       {children}
     </a>
   );
 }
 
 function MarkdownInput(props: ComponentPropsWithoutRef<"input">) {
-  return (
-    <input
-      {...props}
-      disabled
-      onMouseDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-    />
-  );
+  return <input {...props} disabled />;
 }
 
 const markdownComponents: Components = {
@@ -65,11 +43,31 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
   const { onChange, onRequestChild } = useNoteActions();
   const [title, setTitle] = useSyncedDraft(data.title);
   const [body, setBody] = useSyncedDraft(data.body);
+  const [editingTitle, setEditingTitle] = useState(false);
   const [editingBody, setEditingBody] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const titleComposingRef = useRef(false);
+  const handledEditRef = useRef(0);
   const active = selected || data.inCascade || data.activeParent;
+
+  // `N`, `Tab` and `Enter` on the canvas open an editor by asking through node
+  // data instead of reaching into the DOM for the field.
+  useEffect(() => {
+    const request = data.editRequest;
+    if (!request || request.nonce === handledEditRef.current) return;
+    handledEditRef.current = request.nonce;
+    if (request.field === "title") setEditingTitle(true);
+    else setEditingBody(true);
+  }, [data.editRequest]);
+
+  useEffect(() => {
+    if (!editingTitle) return;
+    const el = titleRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [editingTitle]);
 
   useEffect(() => {
     if (!editingBody) return;
@@ -88,23 +86,14 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     if (body !== data.body) onChange(id, { body });
   }
 
+  function finishTitleEdit() {
+    commitTitle();
+    setEditingTitle(false);
+  }
+
   function finishBodyEdit() {
     commitBody();
     setEditingBody(false);
-  }
-
-  // The editors are `pointer-events: none` until the card has focus, so a press
-  // anywhere on the card is either a drag or this.
-  function onCardEdit(event: MouseEvent) {
-    const titleEl = titleRef.current;
-    if (!titleEl) return;
-
-    if (event.clientY > titleEl.getBoundingClientRect().bottom) {
-      setEditingBody(true);
-      return;
-    }
-    titleEl.focus();
-    titleEl.setSelectionRange(titleEl.value.length, titleEl.value.length);
   }
 
   function requestChild(event: KeyboardEvent) {
@@ -112,6 +101,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     event.stopPropagation();
     commitTitle();
     commitBody();
+    setEditingTitle(false);
     setEditingBody(false);
     (event.target as HTMLElement).blur();
     onRequestChild(id);
@@ -126,7 +116,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     if (event.key === "Escape") {
       event.preventDefault();
       setTitle(data.title);
-      (event.target as HTMLTextAreaElement).blur();
+      setEditingTitle(false);
       return;
     }
     // Titles stay single logical line; Enter opens body (after IME confirms).
@@ -134,7 +124,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
       if (event.nativeEvent.isComposing || titleComposingRef.current) return;
       event.preventDefault();
       commitTitle();
-      (event.currentTarget as HTMLTextAreaElement).blur();
+      setEditingTitle(false);
       // Wait for IME to finish on the title field before focusing body.
       window.setTimeout(() => setEditingBody(true), 0);
     }
@@ -159,35 +149,47 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
 
   return (
     <div className="note-shell">
-      {data.activeParent ? <div className="note-parent-badge mono">Tab · child</div> : null}
+      {data.activeParent ? <div className="note-parent-badge">Tab · child</div> : null}
       <div
         className={`note-card${active ? " is-active" : ""}${data.activeParent && !selected ? " is-parent" : ""}`}
-        onDoubleClick={onCardEdit}
       >
-        <textarea
-          ref={titleRef}
-          className="nodrag nopan note-title-editor"
-          data-node-id={id}
-          data-node-field="title"
-          value={title}
-          placeholder="Untitled"
-          aria-label={`Title for node ${id}`}
-          rows={1}
-          onMouseDown={stopMouse}
-          onClick={stopMouse}
-          onDoubleClick={stopMouse}
-          onKeyDown={onTitleKeyDown}
-          onCompositionStart={() => {
-            titleComposingRef.current = true;
-          }}
-          onCompositionEnd={() => {
-            titleComposingRef.current = false;
-          }}
-          onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-            setTitle(e.target.value.replace(/\n/g, " "))
-          }
-          onBlur={commitTitle}
-        />
+        {editingTitle ? (
+          <textarea
+            ref={titleRef}
+            className="nodrag nopan note-title-editor"
+            data-node-id={id}
+            data-node-field="title"
+            value={title}
+            placeholder="Untitled"
+            aria-label={`Title for node ${id}`}
+            rows={1}
+            onMouseDown={stopMouse}
+            onClick={stopMouse}
+            onDoubleClick={stopMouse}
+            onKeyDown={onTitleKeyDown}
+            onCompositionStart={() => {
+              titleComposingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              titleComposingRef.current = false;
+            }}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+              setTitle(e.target.value.replace(/\n/g, " "))
+            }
+            onBlur={finishTitleEdit}
+          />
+        ) : (
+          // A div, not a disabled input: only a non-focusable preview leaves the
+          // press to React Flow, which is what makes the whole card draggable.
+          <div
+            className="note-title"
+            data-node-id={id}
+            data-node-field="title"
+            onDoubleClick={() => setEditingTitle(true)}
+          >
+            {title.trim() || <span className="note-placeholder">Untitled</span>}
+          </div>
+        )}
         {editingBody ? (
           <textarea
             ref={bodyRef}
@@ -206,17 +208,11 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
             onBlur={finishBodyEdit}
           />
         ) : (
-          <button
-            type="button"
-            className="nodrag nopan nowheel note-body-preview"
+          <div
+            className="note-body-preview"
             data-node-id={id}
             data-node-field="body"
-            aria-label={`Body for ${id}. Click to edit.`}
-            onMouseDown={stopMouse}
-            onClick={(event) => {
-              stopMouse(event);
-              setEditingBody(true);
-            }}
+            onDoubleClick={() => setEditingBody(true)}
           >
             {body.trim() ? (
               <div className="note-md">
@@ -225,9 +221,9 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
                 </Markdown>
               </div>
             ) : (
-              <span className="note-body-placeholder">Write here…</span>
+              <span className="note-placeholder">Write here…</span>
             )}
-          </button>
+          </div>
         )}
       </div>
       {/* Outside the card: it clips overflow, which used to halve their hit area. */}

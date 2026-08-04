@@ -12,6 +12,27 @@ Personal **graph notes** — connect ideas on a canvas instead of writing long d
 
 Deep links: `/g/<graphId>` · **Integrations:** `/integrations` · legal: `/terms` · `/privacy`
 
+## Architecture
+
+Client dependencies flow in one direction: `pages → ui + logic → server`. Pages only compose a
+controller and a view; UI modules render state and forward user events; logic modules own state
+transitions and operations; `react-app/server/api.ts` is the single HTTP boundary. UI and pages do
+not call `fetch` or the API client directly.
+
+The deployed server lives separately in `src/worker`: `index.ts` is the Hono transport boundary,
+while database, authentication, token and export modules own their respective server concerns.
+Framework-independent records, quotas and layout algorithms live in `src/shared` so client and
+worker use the same contracts without depending on each other.
+
+```text
+src/react-app/pages   route-level composition
+src/react-app/ui      rendering and UI adapters
+src/react-app/logic   state transitions and application operations
+src/react-app/server  HTTP client boundary
+src/worker            Cloudflare Worker server
+src/shared            shared types and pure algorithms
+```
+
 ## Quick start (local)
 
 Requires **Node.js 26+**. Preferred: Nix flake + direnv.

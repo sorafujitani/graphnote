@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { ApiError, api } from "./api";
-import { authClient } from "./lib/auth-client";
+import { ApiError, api } from "./server/api";
+import { authClient } from "./server/auth";
 import { navigate, parseRoute, type AppRoute } from "./lib/routing";
 import { GraphEditor } from "./pages/GraphEditor";
 import { GraphList } from "./pages/GraphList";
@@ -71,8 +71,8 @@ export default function App() {
 
   if (screen.name === "loading") {
     return (
-      <div className="app-shell" style={{ display: "grid", placeItems: "center" }}>
-        <p className="muted">Loading…</p>
+      <div className="grid h-full min-h-screen place-items-center">
+        <p className="text-muted">Loading…</p>
       </div>
     );
   }

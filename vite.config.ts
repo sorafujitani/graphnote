@@ -1,5 +1,6 @@
 import babel from "@rolldown/plugin-babel";
 import { cloudflare } from "@cloudflare/vite-plugin";
+import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig, lazyPlugins } from "vite-plus";
 
@@ -53,6 +54,7 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   plugins: lazyPlugins(() => [
+    tailwindcss(),
     react(),
     babel({
       presets: [reactCompilerPreset()],

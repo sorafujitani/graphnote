@@ -2,7 +2,7 @@
  * Browser-test harness for the canvas: the interesting graphnote bugs are
  * geometric, and happy-dom reports every box as 0x0, so these tests run in real
  * Chromium and assert against `getBoundingClientRect` / `elementFromPoint`.
- * `stubApi` replaces `fetch` rather than mocking modules, so `api.ts` stays under
+ * `stubApi` replaces `fetch` rather than mocking modules, so `server/api.ts` stays under
  * test and the recorded calls are the payloads the worker would receive.
  */
 import { act, cleanup, render, waitFor } from "@testing-library/react";

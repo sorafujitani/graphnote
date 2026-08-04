@@ -147,14 +147,13 @@ describe("moving a note", () => {
 
   it("keeps the note still while text is dragged inside a focused field", async () => {
     await mountEditor(twoNotes());
-    const title = fieldEditor("n1", "title");
     const card = cardBox("n1");
     const titleBox = fieldBox("n1", "title");
 
     await userEvent.dblClick(cardElement("n1"), {
       position: { x: titleBox.x - card.x + 20, y: titleBox.y - card.y + 4 },
     });
-    await waitFor(() => expect(document.activeElement).toBe(title));
+    await waitFor(() => expect(document.activeElement).toBe(fieldEditor("n1", "title")));
 
     const before = cardBox("n1");
     await dragMouse(
@@ -163,7 +162,27 @@ describe("moving a note", () => {
     );
 
     expect(Math.round(cardBox("n1").x - before.x)).toBe(0);
-    expect(document.activeElement).toBe(title);
+    expect(document.activeElement).toBe(fieldEditor("n1", "title"));
+  });
+});
+
+describe("navigating between notes", () => {
+  it("moves down to the note below instead of a mostly-right note", async () => {
+    await mountEditor([
+      note("n1", 0, 0, "Current"),
+      note("n2", 520, 40, "Mostly right"),
+      note("n3", 0, 320, "Below"),
+    ]);
+
+    await userEvent.click(cardElement("n1"));
+    await waitFor(() => {
+      expect(cardElement("n1").closest(".react-flow__node")).toHaveClass("selected");
+    });
+    await userEvent.keyboard("{ArrowDown}");
+
+    await waitFor(() => {
+      expect(cardElement("n3").closest(".react-flow__node")).toHaveClass("selected");
+    });
   });
 });
 
@@ -214,6 +233,20 @@ describe("editing a note", () => {
       expect(document.activeElement).toBe(editor);
     });
   });
+
+  it("opens the selected note's title on Enter", async () => {
+    // The canvas asks through node data; nothing reaches into the DOM for the field.
+    await mountEditor(twoNotes());
+
+    await userEvent.click(cardElement("n1"));
+    await userEvent.keyboard("{Enter}");
+
+    await waitFor(() => {
+      const editor = fieldEditor("n1", "title");
+      expect(editor.tagName).toBe("TEXTAREA");
+      expect(document.activeElement).toBe(editor);
+    });
+  });
 });
 
 describe("adding a note", () => {
@@ -232,5 +265,12 @@ describe("adding a note", () => {
       expect(created).not.toMatchObject({ x: 168, y: 168 });
     });
     await waitFor(() => expect(document.querySelectorAll(".note-card")).toHaveLength(3));
+    // A new note is ready to type in, without a timer racing the mount.
+    const created = [...document.querySelectorAll<HTMLElement>(".react-flow__node")].at(-1);
+    await waitFor(() => {
+      expect(created?.querySelector("textarea[data-node-field='title']")).toBe(
+        document.activeElement,
+      );
+    });
   });
 });

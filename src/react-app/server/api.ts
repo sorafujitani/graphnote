@@ -7,7 +7,7 @@ import type {
   GraphExport,
   NodeRecord,
   PublicUser,
-} from "../shared/types";
+} from "../../shared/types";
 
 export class ApiError extends Error {
   status: number;

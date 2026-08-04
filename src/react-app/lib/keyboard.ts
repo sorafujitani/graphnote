@@ -5,34 +5,6 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
-export function focusNodeField(nodeId: string, field: "title" | "body" = "title"): void {
-  const el = document.querySelector<HTMLElement>(
-    `[data-node-id="${nodeId}"][data-node-field="${field}"]`,
-  );
-  if (!el) return;
-
-  // Body preview is a button; click switches to the textarea editor.
-  if (field === "body" && !(el instanceof HTMLTextAreaElement)) {
-    el.click();
-    window.setTimeout(() => {
-      const textarea = document.querySelector<HTMLTextAreaElement>(
-        `textarea[data-node-id="${nodeId}"][data-node-field="body"]`,
-      );
-      if (!textarea) return;
-      textarea.focus();
-      const len = textarea.value.length;
-      textarea.setSelectionRange(len, len);
-    }, 0);
-    return;
-  }
-
-  el.focus();
-  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-    const len = el.value.length;
-    el.setSelectionRange(len, len);
-  }
-}
-
 export function nearestNodeId(
   nodes: { id: string; x: number; y: number }[],
   fromId: string,
@@ -51,6 +23,12 @@ export function nearestNodeId(
     const delta = (node[axis] - from[axis]) * sign;
     if (delta <= 8) continue;
     const drift = Math.abs(node[cross] - from[cross]);
+
+    // Keep navigation inside the 90-degree sector indicated by the arrow.
+    // A node that is mostly sideways should be reached with the horizontal
+    // arrow even if it happens to sit a few pixels above or below this one.
+    if (drift > delta) continue;
+
     const score = delta + drift * 0.35;
     if (!best || score < best.score) best = { id: node.id, score };
   }
