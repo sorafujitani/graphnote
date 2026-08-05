@@ -190,7 +190,8 @@ sendEmail({ from, to });
 3. **Outline** — 1 root → 3–6 L1 facets → 2–5 L2 units each. Recurse to L3 only when Child test still demands a node. Prefer a balanced bush over deep or wide extremes.
 4. **Wording pass** — rewrite every planned title into plain language (Language section).
 5. **Body pass** — for each leaf / key concept: add a short cue, a verified official link when useful, and one minimal example when it teaches faster than prose. Apply the body line budget; anything that failed “necessary as a node” goes here. Skip structural-only nodes.
-6. **Auth** — `gqn whoami` / `gqn --prod whoami`; if unauthorized, set API token (`gqn config set-token`). Never print tokens.
+6. **Auth** — `gqn whoami` / `gqn --prod whoami`; if unauthorized, set the API token with
+   `gqn config set-token` and its hidden prompt. Never print tokens or override its origin binding.
 7. **Create graph + root** (root body: source URL and/or primary official overview)
 
 ```bash

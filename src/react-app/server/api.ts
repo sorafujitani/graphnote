@@ -1,5 +1,6 @@
 import type {
   ApiTokenMeta,
+  ApiTokenAccess,
   CascadeResult,
   EdgeRecord,
   Graph,
@@ -100,12 +101,16 @@ export const api = {
       method: "POST",
     }),
   listTokens: () => request<{ tokens: ApiTokenMeta[] }>("/api/tokens"),
-  createToken: (name: string) =>
+  createToken: (name: string, access: ApiTokenAccess) =>
     request<{ token: string; meta: ApiTokenMeta }>("/api/tokens", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, access }),
     }),
   deleteToken: (tokenId: string) =>
     request<{ ok: boolean }>(`/api/tokens/${tokenId}`, { method: "DELETE" }),
-  deleteAccount: () => request<{ ok: boolean }>("/api/account", { method: "DELETE" }),
+  deleteAccount: () =>
+    request<{ ok: boolean }>("/api/account", {
+      method: "DELETE",
+      body: JSON.stringify({ confirmation: "DELETE MY ACCOUNT" }),
+    }),
 };

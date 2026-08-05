@@ -37,6 +37,10 @@ export function authRateKey(ip: string): string {
   return `auth:${ip}`;
 }
 
+export function readRateKey(userId: string): string {
+  return `read:${userId}`;
+}
+
 export function writeRateKey(userId: string): string {
   return `write:${userId}`;
 }

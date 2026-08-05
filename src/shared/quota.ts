@@ -14,6 +14,8 @@ export const QUOTA = {
 export const RATE_LIMIT = {
   /** Auth-ish routes per IP per minute. */
   authPerMinute: 30,
+  /** Authenticated read requests per user per minute. */
+  readPerMinute: 600,
   /** Mutating API calls per user per minute. */
   writePerMinute: 120,
 } as const;

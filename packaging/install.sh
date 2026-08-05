@@ -71,7 +71,7 @@ cat <<EOF
 
 Next:
   1. $BASE_URL/integrations → create an access key
-  2. gqn config set-token <key>
+  2. gqn config set-token    # paste the key into the hidden prompt
   3. gqn graphs list
 
 Agent skills (gqn · gqn-teach · gqn-node-refactor):

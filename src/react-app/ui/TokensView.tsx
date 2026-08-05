@@ -18,16 +18,18 @@ export function TokensView({ controller, onBack }: Props) {
         <h1 className="m-0 text-xl font-bold">Integrations</h1>
       </header>
       <p className="text-muted">
-        Create an access key to connect graphnote from another app or device. Copy it when shown —
-        we cannot display it again.
+        Create a 90-day access key for another app or device. Copy it when shown — we cannot display
+        it again.
       </p>
       {state.error ? <p className="m-0 text-danger">{state.error}</p> : null}
       {state.created ? (
         <div className="panel mb-4 p-4">
           <p className="mt-0 mb-2">Copy this key now:</p>
           <code className="break-all font-mono">{state.created}</code>
-          <p className="mt-3 mb-[0.35rem] text-sm text-muted">Then point the CLI at it:</p>
-          <CommandLine command={`gqn config set-token ${state.created}`} />
+          <p className="mt-3 mb-[0.35rem] text-sm text-muted">
+            Then run this and paste the key into the hidden prompt:
+          </p>
+          <CommandLine command="gqn config set-token" />
         </div>
       ) : null}
       <div className="mb-4 flex flex-col gap-2 sm:flex-row">
@@ -37,6 +39,15 @@ export function TokensView({ controller, onBack }: Props) {
           placeholder="Label (e.g. My laptop)"
           className="input-surface flex-1"
         />
+        <select
+          aria-label="Access level"
+          value={state.access}
+          onChange={(event) => actions.setAccess(event.target.value === "read" ? "read" : "write")}
+          className="input-surface"
+        >
+          <option value="read">Read only</option>
+          <option value="write">Read &amp; write</option>
+        </select>
         <button
           className="btn btn-accent accent"
           type="button"
@@ -56,6 +67,8 @@ export function TokensView({ controller, onBack }: Props) {
               <div>{token.name || "Unnamed"}</div>
               <div className="text-sm text-muted">
                 Created {new Date(token.created_at).toLocaleString()}
+                {` · ${token.scopes.includes("graph:write") ? "Read & write" : "Read only"}`}
+                {` · Expires ${new Date(token.expires_at).toLocaleDateString()}`}
                 {token.last_used_at
                   ? ` · Last used ${new Date(token.last_used_at).toLocaleString()}`
                   : ""}
@@ -86,7 +99,7 @@ export function TokensView({ controller, onBack }: Props) {
           command="npx skills add sorafujitani/graphnote"
           hint="Adds gqn · gqn-teach · gqn-node-refactor to your agent. -g installs globally, --agent picks the agent, npx skills update refreshes them."
         />
-        <CommandLine command="gqn graphs list" hint="Check the key works." />
+        <CommandLine command="gqn graphs list" hint="Check the key works for its bound host." />
       </section>
     </div>
   );

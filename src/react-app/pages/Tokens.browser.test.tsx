@@ -7,7 +7,15 @@ import { Tokens } from "./Tokens";
 import "../index.css";
 
 const TS = "2026-01-01T00:00:00.000Z";
-const EXISTING: ApiTokenMeta = { id: "t1", name: "My laptop", created_at: TS, last_used_at: null };
+const EXPIRES = "2026-04-01T00:00:00.000Z";
+const EXISTING: ApiTokenMeta = {
+  id: "t1",
+  name: "My laptop",
+  scopes: ["graph:read"],
+  created_at: TS,
+  last_used_at: null,
+  expires_at: EXPIRES,
+};
 
 let stub: FetchStub | null = null;
 
@@ -23,7 +31,14 @@ async function mountTokens() {
     if (path === "/api/tokens" && method === "POST") {
       return {
         token: "gqn_live_abc123",
-        meta: { id: "t2", name: "CI", created_at: TS, last_used_at: null },
+        meta: {
+          id: "t2",
+          name: "CI",
+          scopes: ["graph:read", "graph:write", "graph:export"],
+          created_at: TS,
+          last_used_at: null,
+          expires_at: EXPIRES,
+        },
       };
     }
     return undefined;
@@ -51,14 +66,19 @@ describe("install guidance", () => {
     expect(commands()).toContain("npx skills add sorafujitani/graphnote");
   });
 
-  it("shows the exact set-token command once a key exists", async () => {
-    await mountTokens();
+  it("shows a token-free setup command once a key exists", async () => {
+    const api = await mountTokens();
     expect(commands().some((command) => command.includes("set-token"))).toBe(false);
 
     await userEvent.click(document.querySelector("button.accent") as HTMLElement);
 
     await waitFor(() => {
-      expect(commands()).toContain("gqn config set-token gqn_live_abc123");
+      expect(commands()).toContain("gqn config set-token");
+      expect(commands().every((command) => !command.includes("gqn_live_abc123"))).toBe(true);
+      expect(api.matching("POST", "/api/tokens")[0]?.body).toEqual({
+        name: "My device",
+        access: "read",
+      });
     });
   });
 

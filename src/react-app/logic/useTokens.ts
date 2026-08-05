@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import type { ApiTokenMeta } from "../../shared/types";
+import type { ApiTokenAccess, ApiTokenMeta } from "../../shared/types";
 import { ApiError, api } from "../server/api";
 export function useTokens() {
   const [tokens, setTokens] = useState<ApiTokenMeta[]>([]);
   const [name, setName] = useState("My device");
+  const [access, setAccess] = useState<ApiTokenAccess>("read");
   const [created, setCreated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -26,7 +27,7 @@ export function useTokens() {
     setError(null);
     setCreated(null);
     try {
-      const result = await api.createToken(name.trim() || "My device");
+      const result = await api.createToken(name.trim() || "My device", access);
       setCreated(result.token);
       await refresh();
     } catch (err) {
@@ -47,8 +48,8 @@ export function useTokens() {
   }
 
   return {
-    state: { tokens, name, created, error, busy, origin },
-    actions: { setName, onCreate, onDelete },
+    state: { tokens, name, access, created, error, busy, origin },
+    actions: { setName, setAccess, onCreate, onDelete },
   };
 }
 

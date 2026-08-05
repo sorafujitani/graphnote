@@ -3,7 +3,7 @@
  * JSON on stdout by default. Errors as {"error":"..."} with non-zero exit.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -14,16 +14,20 @@ import type {
   GraphExport,
   NodeRecord,
 } from "../src/shared/types.js";
+import { credentialAudience, isAllowedCredentialTarget } from "../src/shared/credentialTarget.js";
 import { placeChildPosition } from "../src/shared/placeChild.js";
 
 type ConfigFile = {
   url?: string;
   token?: string;
+  tokenUrl?: string;
 };
 
 type Config = {
   url: string;
   token: string;
+  hasCredential: boolean;
+  tokenBoundTo: string | null;
 };
 
 type FlagValue = string | true;
@@ -66,7 +70,12 @@ function configPath(): string {
 }
 
 function ensureConfigDir(): void {
-  mkdirSync(configDir(), { recursive: true });
+  const dir = configDir();
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    return;
+  }
+  if (dir === PROD_CONFIG_DIR || dir === LOCAL_CONFIG_DIR) chmodSync(dir, 0o700);
 }
 
 function readConfigFile(): ConfigFile {
@@ -79,28 +88,44 @@ function readConfigFile(): ConfigFile {
   }
 }
 
+function targetUrl(file: ConfigFile): string {
+  return (runtime.urlOverride || process.env.GRAPHNOTE_URL || file.url || DEFAULT_URL).replace(
+    /\/$/,
+    "",
+  );
+}
+
 function loadConfig(): Config {
   ensureConfigDir();
   const file = readConfigFile();
+  const url = targetUrl(file);
+  const envToken = process.env.GRAPHNOTE_TOKEN || "";
+  const sourceToken = envToken || file.token || "";
+  const tokenBoundTo = envToken
+    ? process.env.GRAPHNOTE_TOKEN_URL || (process.env.GRAPHNOTE_URL ? null : DEFAULT_URL)
+    : file.tokenUrl || file.url || DEFAULT_URL;
+  const targetAudience = credentialAudience(url);
+  const boundAudience = tokenBoundTo ? credentialAudience(tokenBoundTo) : null;
   return {
-    url: (runtime.urlOverride || process.env.GRAPHNOTE_URL || file.url || DEFAULT_URL).replace(
-      /\/$/,
-      "",
-    ),
-    token: process.env.GRAPHNOTE_TOKEN || file.token || "",
+    url,
+    token: sourceToken && targetAudience && targetAudience === boundAudience ? sourceToken : "",
+    hasCredential: Boolean(sourceToken),
+    tokenBoundTo: sourceToken ? tokenBoundTo : null,
   };
 }
 
-function saveConfig(patch: Partial<ConfigFile>): Config {
+function saveConfig(patch: Partial<ConfigFile>): ConfigFile {
   ensureConfigDir();
   const file = readConfigFile();
-  const next: Config = {
+  const next: ConfigFile = {
     url: (patch.url ?? file.url ?? DEFAULT_URL).replace(/\/$/, ""),
     token: patch.token ?? file.token ?? "",
+    tokenUrl: patch.tokenUrl ?? file.tokenUrl,
   };
   writeFileSync(configPath(), `${JSON.stringify(next, null, 2)}\n`, {
     mode: 0o600,
   });
+  chmodSync(configPath(), 0o600);
   return next;
 }
 
@@ -126,6 +151,59 @@ function fail(message: string, code = 1): never {
   process.stderr.write(`${message}\n`);
   process.stdout.write(`${JSON.stringify({ error: message })}\n`);
   process.exit(code);
+}
+
+function requireForce(flags: Flags, operation: string): void {
+  if (!flag(flags, "force")) {
+    fail(`refusing to ${operation} without --force`);
+  }
+}
+
+async function readSecret(): Promise<string> {
+  if (!process.stdin.isTTY) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+    }
+    return Buffer.concat(chunks).toString("utf8").trim();
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const input = process.stdin;
+    const wasRaw = input.isRaw;
+    let value = "";
+    process.stderr.write("API token: ");
+    input.setRawMode(true);
+    input.setEncoding("utf8");
+    input.resume();
+
+    const finish = () => {
+      input.off("data", onData);
+      input.setRawMode(Boolean(wasRaw));
+      input.pause();
+      process.stderr.write("\n");
+    };
+    const onData = (data: string | Buffer) => {
+      for (const char of String(data)) {
+        if (char === "\u0003") {
+          finish();
+          reject(new Error("cancelled"));
+          return;
+        }
+        if (char === "\r" || char === "\n") {
+          finish();
+          resolve(value.trim());
+          return;
+        }
+        if (char === "\u007f" || char === "\b") {
+          value = value.slice(0, -1);
+          continue;
+        }
+        if (char >= " ") value += char;
+      }
+    };
+    input.on("data", onData);
+  });
 }
 
 function print(data: unknown): void {
@@ -199,7 +277,16 @@ async function api<T>(
   options: { allowUnauthorized?: boolean } = {},
 ): Promise<T> {
   const { allowUnauthorized = false } = options;
-  const { url, token } = loadConfig();
+  const { url, token, hasCredential, tokenBoundTo } = loadConfig();
+  if (!isAllowedCredentialTarget(url)) {
+    fail(`refusing credentials over an unsafe target: ${url}`);
+  }
+  if (hasCredential && !token) {
+    fail(
+      `refusing to send a credential bound to ${tokenBoundTo ?? "another origin"} to ${url}; ` +
+        "set a separate token for this target",
+    );
+  }
   const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -223,10 +310,7 @@ async function api<T>(
 
   if (!res.ok) {
     if (res.status === 401 && !allowUnauthorized) {
-      fail(
-        "unauthorized — create an API token in the web UI, then: gqn config set-token <token>",
-        2,
-      );
+      fail("unauthorized — create an API token in the web UI, then run: gqn config set-token", 2);
     }
     const errBody = data as ApiErrorBody | null;
     const message =
@@ -244,25 +328,26 @@ Target (default: production):
   --local                ${LOCAL_URL}
   --url <url>            arbitrary base URL
   GRAPHNOTE_URL          env override (below flags)
+  GRAPHNOTE_TOKEN_URL    origin binding for GRAPHNOTE_TOKEN
   ~/.config/graphnote/   prod config + token
   ~/.config/graphnote-local/  used with --local
 
 Auth (API token from web UI → API tokens):
-  gqn config set-token <token>
+  gqn config set-token         # hidden prompt; binds the key to the current target
   gqn whoami
-  gqn logout                  # clears saved token
+  gqn logout                  # revokes the current token, then clears it locally
 
 Config:
   gqn config show
   gqn config set-url <url>
-  gqn config set-token <token>
+  gqn config set-token
 
 Graphs:
   gqn graphs list
   gqn graphs create <title>
   gqn graphs get <graphId>
   gqn graphs rename <graphId> <title>
-  gqn graphs delete <graphId>
+  gqn graphs delete <graphId> --force
   gqn graphs export <graphId>
   gqn graphs import <file.json>
   gqn graphs fmt <graphId>
@@ -270,11 +355,11 @@ Graphs:
 Nodes:
   gqn nodes create <graphId> [--title T] [--body B] [--x N] [--y N] [--parent <nodeId>]
   gqn nodes update <graphId> <nodeId> [--title T] [--body B] [--x N] [--y N]
-  gqn nodes delete <graphId> <nodeId...> [--cascade]
+  gqn nodes delete <graphId> <nodeId...> [--cascade] --force
 
 Edges:
   gqn edges create <graphId> <sourceId> <targetId> [--label L]
-  gqn edges delete <graphId> <edgeId>
+  gqn edges delete <graphId> <edgeId> --force
 
 Agent skills (gqn · gqn-teach · gqn-node-refactor):
   npx skills add sorafujitani/graphnote
@@ -285,7 +370,7 @@ Other:
   gqn health
 
 Examples:
-  gqn config set-token gqn_…
+  gqn config set-token
   gqn graphs list
   gqn --local graphs list
 `;
@@ -323,7 +408,8 @@ async function cmdGraphs(args: string[], flags: Flags): Promise<unknown> {
     case "delete":
     case "rm": {
       const id = rest[0];
-      if (!id) fail("usage: gqn graphs delete <graphId>");
+      if (!id) fail("usage: gqn graphs delete <graphId> --force");
+      requireForce(flags, `delete graph ${id}`);
       return api<{ ok: boolean }>("DELETE", `/api/graphs/${id}`);
     }
     case "export": {
@@ -418,8 +504,9 @@ async function cmdNodes(args: string[], flags: Flags): Promise<unknown> {
     case "rm": {
       const ids = rest;
       if (!ids.length) {
-        fail("usage: gqn nodes delete <graphId> <nodeId...> [--cascade]");
+        fail("usage: gqn nodes delete <graphId> <nodeId...> [--cascade] --force");
       }
+      requireForce(flags, `delete ${ids.length} node(s)`);
       const cascade = Boolean(flag(flags, "cascade"));
       return api<{ deletedNodeIds: string[]; deletedEdgeIds: string[] }>(
         "POST",
@@ -451,8 +538,9 @@ async function cmdEdges(args: string[], flags: Flags): Promise<unknown> {
     case "delete":
     case "rm": {
       if (!graphId || !a) {
-        fail("usage: gqn edges delete <graphId> <edgeId>");
+        fail("usage: gqn edges delete <graphId> <edgeId> --force");
       }
+      requireForce(flags, `delete edge ${a}`);
       return api<{ ok: boolean }>("DELETE", `/api/graphs/${graphId}/edges/${a}`);
     }
     default:
@@ -494,7 +582,9 @@ async function main(): Promise<void> {
             url: cfg.url,
             token: cfg.token ? "***" : "",
             configPath: configPath(),
-            hasToken: Boolean(cfg.token),
+            hasToken: cfg.hasCredential,
+            tokenUsableForUrl: Boolean(cfg.token),
+            tokenBoundTo: cfg.tokenBoundTo,
           });
           return;
         }
@@ -507,22 +597,55 @@ async function main(): Promise<void> {
         }
         if (sub === "set-token") {
           const tokenFlag = flag(restFlags, "token");
-          const token = cfgArgs[0] || (typeof tokenFlag === "string" ? tokenFlag : "");
-          if (!token) fail("usage: gqn config set-token <token>");
-          saveConfig({ token });
-          print({ ok: true });
+          const argumentToken = cfgArgs[0] || (typeof tokenFlag === "string" ? tokenFlag : "");
+          if (argumentToken) {
+            process.stderr.write(
+              "warning: passing a token as an argument may expose it in shell history; " +
+                "run `gqn config set-token` and paste it into the prompt instead\n",
+            );
+          }
+          const token = argumentToken || (await readSecret());
+          if (!token) fail("API token required");
+          if (!token.startsWith("gqn_")) fail("invalid API token format");
+          const boundUrl = targetUrl(readConfigFile());
+          if (!isAllowedCredentialTarget(boundUrl)) {
+            fail(`refusing to bind a token to an unsafe target: ${boundUrl}`);
+          }
+          saveConfig({ token, tokenUrl: boundUrl });
+          print({ ok: true, boundTo: boundUrl });
           return;
         }
         fail("usage: gqn config <show|set-url|set-token>");
       }
       case "login": {
         fail(
-          "use Google sign-in in the web UI, create an API token, then: gqn config set-token <token>",
+          "use Google sign-in in the web UI, create an API token, then run: gqn config set-token",
         );
       }
       case "logout": {
-        saveConfig({ token: "" });
-        print({ ok: true });
+        const cfg = loadConfig();
+        let revoked = false;
+        if (cfg.token) {
+          if (!isAllowedCredentialTarget(cfg.url)) {
+            fail(`refusing credentials over an unsafe target: ${cfg.url}`);
+          }
+          const res = await fetch(`${cfg.url}/api/token`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${cfg.token}`, Accept: "application/json" },
+            redirect: "manual",
+          });
+          if (!res.ok && res.status !== 401) {
+            fail(`could not revoke token: ${res.status} ${res.statusText}`);
+          }
+          revoked = res.ok;
+        } else if (cfg.hasCredential) {
+          fail(
+            `saved token is bound to ${cfg.tokenBoundTo ?? "another origin"}; ` +
+              "select that target before logout",
+          );
+        }
+        saveConfig({ token: "", tokenUrl: "" });
+        print({ ok: true, revoked });
         return;
       }
       case "whoami": {

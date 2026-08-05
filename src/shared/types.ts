@@ -52,9 +52,14 @@ export type PublicUser = {
   image: string | null;
 };
 
+export type ApiTokenScope = "graph:read" | "graph:write" | "graph:export";
+export type ApiTokenAccess = "read" | "write";
+
 export type ApiTokenMeta = {
   id: string;
   name: string;
+  scopes: ApiTokenScope[];
   created_at: string;
   last_used_at: string | null;
+  expires_at: string;
 };

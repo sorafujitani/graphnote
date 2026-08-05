@@ -110,7 +110,8 @@ Then:
 
 1. Sign in at https://graphnote.app
 2. **Integrations** → create access key → copy once (the page shows the exact commands)
-3. `gqn config set-token <token>` (or `GRAPHNOTE_TOKEN`)
+3. Run `gqn config set-token` and paste the token into the hidden prompt. The saved key is bound
+   to the current host. For CI, pair `GRAPHNOTE_TOKEN` with `GRAPHNOTE_TOKEN_URL`.
 4. `gqn graphs list`
 
 Other channels:
