@@ -13,6 +13,8 @@ export type NodeRecord = {
   body: string;
   x: number;
   y: number;
+  width: number | null;
+  height: number | null;
   created_at: string;
   updated_at: string;
 };

@@ -1,0 +1,2 @@
+ALTER TABLE nodes ADD COLUMN width REAL;
+ALTER TABLE nodes ADD COLUMN height REAL;

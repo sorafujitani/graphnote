@@ -1,6 +1,6 @@
 import { LAYOUT_DX, LAYOUT_GAP } from "./placeChild.js";
 
-export type LayoutGraphNode = { id: string; height?: number };
+export type LayoutGraphNode = { id: string; width?: number | null; height?: number };
 export type LayoutGraphEdge = { source_id: string; target_id: string };
 
 export type TreeLayoutOptions = {
@@ -24,7 +24,8 @@ export function layoutTree(
 ): Map<string, { x: number; y: number }> {
   const x0 = options.x0 ?? 80;
   const y0 = options.y0 ?? 80;
-  const dx = options.dx ?? LAYOUT_DX;
+  const widestNode = Math.max(280, ...nodes.map((node) => node.width ?? 280));
+  const dx = options.dx ?? Math.max(LAYOUT_DX, widestNode + 60);
   const dy = options.dy ?? 120;
   const gap = options.gap ?? LAYOUT_GAP;
 

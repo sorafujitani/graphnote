@@ -1,4 +1,4 @@
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
 import {
   useEffect,
   useRef,
@@ -10,6 +10,12 @@ import {
 } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {
+  NOTE_MAX_HEIGHT,
+  NOTE_MAX_WIDTH,
+  NOTE_MIN_HEIGHT,
+  NOTE_MIN_WIDTH,
+} from "../../shared/noteSize";
 import { useSyncedDraft } from "../lib/useSyncedDraft";
 import type { AppNode } from "../logic/graphEditorTypes";
 import { useNoteActions } from "./NoteActions";
@@ -40,7 +46,7 @@ const markdownComponents: Components = {
 };
 
 export function Note({ id, data, selected }: NodeProps<AppNode>) {
-  const { onChange, onRequestChild } = useNoteActions();
+  const { onChange, onRequestChild, onResize } = useNoteActions();
   const [title, setTitle] = useSyncedDraft(data.title);
   const [body, setBody] = useSyncedDraft(data.body);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -49,7 +55,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const titleComposingRef = useRef(false);
   const handledEditRef = useRef(0);
-  const active = selected || data.inCascade || data.activeParent;
+  const active = selected || data.activeParent;
 
   // `N`, `Tab` and `Enter` on the canvas open an editor by asking through node
   // data instead of reaching into the DOM for the field.
@@ -148,8 +154,19 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
   }
 
   return (
-    <div className="note-shell">
-      {data.activeParent ? <div className="note-parent-badge">Tabで子カード</div> : null}
+    <div className={`note-shell${data.manuallySized ? " is-manually-sized" : ""}`}>
+      <NodeResizer
+        isVisible={selected}
+        minWidth={NOTE_MIN_WIDTH}
+        minHeight={NOTE_MIN_HEIGHT}
+        maxWidth={NOTE_MAX_WIDTH}
+        maxHeight={NOTE_MAX_HEIGHT}
+        color="#60a5fa"
+        handleClassName="note-resize-handle"
+        lineClassName="note-resize-line"
+        onResizeEnd={(_, size) => onResize(id, size)}
+      />
+      {data.activeParent ? <div className="note-parent-badge">Tabで子ノード</div> : null}
       <div
         className={`note-card${active ? " is-active" : ""}${data.activeParent && !selected ? " is-parent" : ""}`}
       >
@@ -161,7 +178,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
             data-node-field="title"
             value={title}
             placeholder="タイトルなし"
-            aria-label="カードのタイトル"
+            aria-label="ノードのタイトル"
             rows={1}
             onMouseDown={stopMouse}
             onClick={stopMouse}
@@ -198,7 +215,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
             data-node-field="body"
             value={body}
             placeholder="メモを書く…"
-            aria-label="カードの本文"
+            aria-label="ノードの本文"
             rows={3}
             onMouseDown={stopMouse}
             onClick={stopMouse}

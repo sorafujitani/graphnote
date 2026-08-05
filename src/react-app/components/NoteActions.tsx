@@ -2,6 +2,7 @@ import { createContext, use, type ReactNode } from "react";
 
 export type NoteActions = {
   onChange: (nodeId: string, patch: { title?: string; body?: string }) => void;
+  onResize: (nodeId: string, size: { x: number; y: number; width: number; height: number }) => void;
   onRequestChild: (nodeId: string) => void;
 };
 

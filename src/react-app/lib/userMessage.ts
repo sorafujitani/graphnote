@@ -6,8 +6,8 @@ const API_MESSAGES: Record<string, string> = {
   "not found": "対象が見つかりませんでした。画面を更新してお試しください。",
   "create failed": "作成できませんでした。もう一度お試しください。",
   "import failed": "読み込めませんでした。ファイルを確認してもう一度お試しください。",
-  "unsupported export version": "このバックアップ形式には対応していません。",
-  "invalid export payload": "バックアップファイルの内容を確認できませんでした。",
+  "unsupported export version": "このダウンロードファイルの形式には対応していません。",
+  "invalid export payload": "ダウンロードファイルの内容を確認できませんでした。",
 };
 
 export function userMessage(error: unknown, fallback: string): string {

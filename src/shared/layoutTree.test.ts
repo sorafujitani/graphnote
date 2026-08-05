@@ -47,4 +47,16 @@ describe("layoutTree", () => {
     const aBottom = pos.get("a")!.y + 280;
     expect(pos.get("b")!.y).toBeGreaterThanOrEqual(aBottom + 24 - 1);
   });
+
+  it("keeps columns clear of the widest saved card", () => {
+    const nodes = [
+      { id: "p", width: 520 },
+      { id: "c", width: 280 },
+    ];
+    const edges = [{ source_id: "p", target_id: "c" }];
+
+    const pos = layoutTree(nodes, edges, { x0: 0, y0: 0 });
+
+    expect(pos.get("c")!.x - pos.get("p")!.x).toBe(580);
+  });
 });

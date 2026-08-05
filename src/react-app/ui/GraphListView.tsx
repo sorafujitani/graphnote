@@ -29,7 +29,7 @@ export function GraphListView({
           <p className="font-brand m-0 font-semibold text-muted">graphnote</p>
           <h1 className="mt-[0.2rem] text-[2rem] leading-tight font-bold">あなたのボード</h1>
           <p className="mt-2 mb-0 text-sm text-muted">
-            考えたいテーマごとに、カードをまとめられます。
+            考えたいテーマごとに、ノードをまとめられます。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

@@ -20,4 +20,11 @@ describe("placeChildPosition", () => {
     const pos = placeChildPosition(parent, [first]);
     expect(pos.y).toBeGreaterThan(first.y + 100);
   });
+
+  it("keeps a new child clear of manually enlarged cards", () => {
+    const parent = { x: 10, y: 20, width: 500, title: "P", body: "" };
+    const sibling = { x: 570, y: 20, height: 260, title: "A", body: "" };
+
+    expect(placeChildPosition(parent, [sibling])).toEqual({ x: 570, y: 312 });
+  });
 });

@@ -5,7 +5,8 @@ export type EditRequest = { nodeId: string; field: "title" | "body"; nonce: numb
 type NoteData = {
   title: string;
   body: string;
-  inCascade?: boolean;
+  /** The card fills the React Flow dimensions after its first manual resize. */
+  manuallySized?: boolean;
   /** Mouse hover or keyboard focus parent candidate. */
   activeParent?: boolean;
   /** Editor the canvas asked to open; the nonce lets the same one be re-asked. */

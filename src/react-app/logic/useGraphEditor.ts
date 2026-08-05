@@ -2,6 +2,7 @@ import {
   applyNodeChanges,
   type Connection,
   type Edge,
+  type EdgeChange,
   type NodeChange,
   type OnSelectionChangeParams,
   type ReactFlowInstance,
@@ -49,8 +50,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const [nodes, setNodes] = useState<AppNode[]>([]);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
-  const [cascadeNodeIds, setCascadeNodeIds] = useState<string[]>([]);
-  const [cascadeEdgeIds, setCascadeEdgeIds] = useState<string[]>([]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   /** keyboard stand-in for hover — can be set without a mouse */
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
@@ -71,7 +70,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const focusNodeIdRef = useRef(focusNodeId);
   const nodeRecordsRef = useRef(nodeRecords);
   const edgeRecordsRef = useRef(edgeRecords);
-  const cascadeNodeIdsRef = useRef(cascadeNodeIds);
   const busyRef = useRef(busy);
   const linkSourceIdRef = useRef(linkSourceId);
   selectedNodeIdsRef.current = selectedNodeIds;
@@ -80,7 +78,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   focusNodeIdRef.current = focusNodeId;
   nodeRecordsRef.current = nodeRecords;
   edgeRecordsRef.current = edgeRecords;
-  cascadeNodeIdsRef.current = cascadeNodeIds;
   busyRef.current = busy;
   linkSourceIdRef.current = linkSourceId;
 
@@ -110,7 +107,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
           setNodeRecords((prev) => prev.map((item) => (item.id === node.id ? node : item)));
         })
         .catch((err) => {
-          setError(userMessage(err, "カードを保存できませんでした。もう一度お試しください。"));
+          setError(userMessage(err, "ノードを保存できませんでした。もう一度お試しください。"));
         });
     },
     [graphId],
@@ -129,11 +126,9 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         setEdgeRecords(detail.edges);
         setSelectedNodeIds([]);
         setSelectedEdgeIds([]);
-        setCascadeNodeIds([]);
-        setCascadeEdgeIds([]);
         setHoveredNodeId(null);
         setFocusNodeId(null);
-        setNodes(presentNodes(detail.nodes, [], [], null, null, []));
+        setNodes(presentNodes(detail.nodes, [], null, null, []));
         requestAnimationFrame(() => {
           void flowRef.current?.fitView({ padding: 0.25 });
         });
@@ -147,13 +142,13 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
 
   useEffect(() => {
     setNodes((prev) =>
-      presentNodes(nodeRecords, selectedNodeIds, cascadeNodeIds, activeParentId, editRequest, prev),
+      presentNodes(nodeRecords, selectedNodeIds, activeParentId, editRequest, prev),
     );
-  }, [nodeRecords, selectedNodeIds, cascadeNodeIds, activeParentId, editRequest]);
+  }, [nodeRecords, selectedNodeIds, activeParentId, editRequest]);
 
   const edges = useMemo(
-    () => presentEdges(edgeRecords, new Set(cascadeEdgeIds), new Set(selectedEdgeIds)),
-    [cascadeEdgeIds, edgeRecords, selectedEdgeIds],
+    () => presentEdges(edgeRecords, new Set(selectedEdgeIds)),
+    [edgeRecords, selectedEdgeIds],
   );
 
   // After edges appear/change, remeasure handles so RF doesn't keep a blank path.
@@ -193,7 +188,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const onNodesChange = useCallback((changes: NodeChange<AppNode>[]) => {
     setNodes((prev) => applyNodeChanges(changes, prev));
     for (const change of changes) {
-      if (change.type === "position" && change.position && !change.dragging) {
+      if (change.type === "position" && change.position && change.dragging === false) {
         const position = change.position;
         setNodeRecords((prev) =>
           prev.map((item) =>
@@ -202,6 +197,19 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         );
       }
     }
+  }, []);
+
+  const onEdgesChange = useCallback((changes: EdgeChange<Edge>[]) => {
+    const selectionChanges = changes.filter((change) => change.type === "select");
+    if (selectionChanges.length === 0) return;
+    setSelectedEdgeIds((previous) => {
+      const next = new Set(previous);
+      for (const change of selectionChanges) {
+        if (change.selected) next.add(change.id);
+        else next.delete(change.id);
+      }
+      return [...next];
+    });
   }, []);
 
   const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
@@ -235,7 +243,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
           prev.some((item) => item.id === edge.id) ? prev : [...prev, edge],
         );
       } catch (err) {
-        setError(userMessage(err, "カードをつなげませんでした。もう一度お試しください。"));
+        setError(userMessage(err, "ノードをつなげませんでした。もう一度お試しください。"));
       }
     },
     [graphId],
@@ -267,7 +275,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         // Tab/child path must never create an unlinked node.
         if (opts?.requireParent) {
           if (!parentId || !parent) {
-            setError("つなぎ元のカードが見つかりません。先にカードを1枚選んでください。");
+            setError("つなぎ元のノードが見つかりません。先にノードを1つ選んでください。");
             return null;
           }
         }
@@ -286,7 +294,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
             ? placeChildPosition(parent, siblingNodes)
             : { x: 120 + offset, y: 120 + offset });
         const { node } = await api.createNode(graphId, {
-          title: "新しいカード",
+          title: "新しいノード",
           x: pos.x,
           y: pos.y,
         });
@@ -311,7 +319,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
             if (opts?.requireParent) {
               await api.deleteNodes(graphId, [node.id], false);
               setNodeRecords((prev) => prev.filter((item) => item.id !== node.id));
-              setError("子カードをつなげませんでした。もう一度お試しください。");
+              setError("子ノードをつなげませんでした。もう一度お試しください。");
               return null;
             }
           } else {
@@ -324,7 +332,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         } else if (opts?.requireParent) {
           await api.deleteNodes(graphId, [node.id], false);
           setNodeRecords((prev) => prev.filter((item) => item.id !== node.id));
-          setError("子カードをつなげませんでした。もう一度お試しください。");
+          setError("子ノードをつなげませんでした。もう一度お試しください。");
           return null;
         }
 
@@ -336,7 +344,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         }
         return node;
       } catch (err) {
-        setError(userMessage(err, "カードを追加できませんでした。もう一度お試しください。"));
+        setError(userMessage(err, "ノードを追加できませんでした。もう一度お試しください。"));
         return null;
       } finally {
         setBusy(false);
@@ -352,38 +360,22 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       const first = nodeRecordsRef.current[0]?.id;
       if (first) {
         focusParent(first);
-        setError("最初のカードを選びました。もう一度Tabを押すと子カードを追加できます。");
+        setError("最初のノードを選びました。もう一度Tabを押すと子ノードを追加できます。");
       } else {
-        setError("カードがまだありません。Nを押すと追加できます。");
+        setError("ノードがまだありません。Nを押すと追加できます。");
       }
       return;
     }
     await onAddNode({ parentId, focus: true, requireParent: true });
   }, [focusParent, onAddNode]);
 
-  const onCascadeSelect = useCallback(async () => {
-    const ids = selectedNodeIdsRef.current;
-    if (ids.length === 0) return;
-    setBusy(true);
-    try {
-      const result = await api.cascadeSelect(graphId, ids, "outgoing");
-      setCascadeNodeIds(result.nodeIds);
-      setCascadeEdgeIds(result.edgeIds);
-      selectNodes(result.nodeIds);
-      revealNodes();
-    } catch (err) {
-      setError(userMessage(err, "下位カードを選択できませんでした。もう一度お試しください。"));
-    } finally {
-      setBusy(false);
-    }
-  }, [graphId, revealNodes, selectNodes]);
-
   const onDeleteSelection = useCallback(
     async (cascade: boolean) => {
       const selected = selectedNodeIdsRef.current;
-      const cascadeIds = cascadeNodeIdsRef.current;
-      const ids = cascade && cascadeIds.length > 0 ? cascadeIds : selected;
       const edgeIds = selectedEdgeIdsRef.current;
+      // A selected connection wins over a selected card. This makes Delete and
+      // the toolbar safe even if React Flow briefly keeps both selected.
+      const ids = !cascade && edgeIds.length > 0 ? [] : selected;
       if (ids.length === 0 && edgeIds.length === 0) return;
       setBusy(true);
       setError(null);
@@ -410,8 +402,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         if (removedEdgeIds.size > 0) {
           setEdgeRecords((prev) => prev.filter((edge) => !removedEdgeIds.has(edge.id)));
         }
-        setCascadeNodeIds([]);
-        setCascadeEdgeIds([]);
         selectNodes([]);
         setLinkSourceId(null);
         revealNodes();
@@ -438,9 +428,9 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       a.download = `${payload.graph.title || "graphnote"}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      alert("バックアップをダウンロードしました。アカウントにもコピーを保存しています。");
+      alert("ダウンロードしました。アカウントにもコピーを保存しています。");
     } catch (err) {
-      setError(userMessage(err, "バックアップを作成できませんでした。もう一度お試しください。"));
+      setError(userMessage(err, "ダウンロードできませんでした。もう一度お試しください。"));
     } finally {
       setBusy(false);
     }
@@ -465,7 +455,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       updateInternalsRef.current?.(detail.nodes.map((node) => node.id));
       void flowRef.current?.fitView({ padding: 0.25, duration: 300 });
     } catch (err) {
-      setError(userMessage(err, "カードを整理できませんでした。もう一度お試しください。"));
+      setError(userMessage(err, "ノードを整理できませんでした。もう一度お試しください。"));
     } finally {
       setBusy(false);
     }
@@ -511,11 +501,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
 
     if (event.key === "Escape") {
       event.preventDefault();
-      if (cascadeNodeIdsRef.current.length > 0) {
-        setCascadeNodeIds([]);
-        setCascadeEdgeIds([]);
-        return;
-      }
       if (linkSourceIdRef.current) {
         setLinkSourceId(null);
         setError(null);
@@ -537,7 +522,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       }
       const first = nodeRecordsRef.current[0]?.id;
       if (first) focusParent(first);
-      else setError("カードがまだありません。Nを押すと追加できます。");
+      else setError("ノードがまだありません。Nを押すと追加できます。");
       return;
     }
 
@@ -567,12 +552,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       event.preventDefault();
       focusParent(id);
       requestEdit(id, "title");
-      return;
-    }
-
-    if (key === "c" && !mod) {
-      event.preventDefault();
-      void onCascadeSelect();
       return;
     }
 
@@ -607,7 +586,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         const prev = linkSourceIdRef.current;
         if (!prev) {
           setLinkSourceId(current);
-          setError("つなぎ先のカードを選び、もう一度Lを押してください。");
+          setError("つなぎ先のノードを選び、もう一度Lを押してください。");
           return;
         }
         if (prev !== current) {
@@ -704,9 +683,50 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         prev.map((item) => (item.id === updated.node.id ? updated.node : item)),
       );
     } catch (err) {
-      setError(userMessage(err, "カードの位置を保存できませんでした。もう一度お試しください。"));
+      setError(userMessage(err, "ノードの位置を保存できませんでした。もう一度お試しください。"));
     }
   }
+
+  const onNodeResize = useCallback(
+    (nodeId: string, size: { x: number; y: number; width: number; height: number }) => {
+      const patch = {
+        x: Math.round(size.x),
+        y: Math.round(size.y),
+        width: Math.round(size.width),
+        height: Math.round(size.height),
+      };
+      setNodeRecords((previous) =>
+        previous.map((node) => (node.id === nodeId ? { ...node, ...patch } : node)),
+      );
+      setNodes((previous) =>
+        previous.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                position: { x: patch.x, y: patch.y },
+                width: patch.width,
+                height: patch.height,
+                style: { ...node.style, width: patch.width, height: patch.height },
+              }
+            : node,
+        ),
+      );
+      void api
+        .updateNode(graphId, nodeId, patch)
+        .then(({ node }) => {
+          setNodeRecords((previous) =>
+            previous.map((current) => (current.id === node.id ? node : current)),
+          );
+          updateInternalsRef.current?.([nodeId]);
+        })
+        .catch((err) => {
+          setError(
+            userMessage(err, "ノードの大きさを保存できませんでした。もう一度お試しください。"),
+          );
+        });
+    },
+    [graphId],
+  );
 
   async function onRenameGraph() {
     const title = titleDraft.trim();
@@ -721,6 +741,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
 
   const noteActions = {
     onChange: persistNode,
+    onResize: onNodeResize,
     onRequestChild: (nodeId: string) => {
       void onAddNode({ parentId: nodeId, focus: true, requireParent: true });
     },
@@ -759,7 +780,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       edgeCount: edgeRecords.length,
       selectedNodeCount: selectedNodeIds.length,
       selectedEdgeCount: selectedEdgeIds.length,
-      cascadeNodeCount: cascadeNodeIds.length,
     },
     refs: { canvasRef, flowRef, updateInternalsRef },
     actions: {
@@ -767,11 +787,11 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       onRenameGraph,
       onAddNode,
       addChildFromActiveParent,
-      onCascadeSelect,
       onDeleteSelection,
       onExport,
       onFmt,
       onNodesChange,
+      onEdgesChange,
       onConnect,
       isValidConnection,
       onNodeDragStop,

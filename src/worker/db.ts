@@ -1,6 +1,7 @@
 import { layoutTree } from "../shared/layoutTree";
 import { estimateNoteHeight } from "../shared/estimateNoteHeight";
 import { QUOTA } from "../shared/quota";
+import { isValidNoteHeight, isValidNoteWidth } from "../shared/noteSize";
 import type {
   CascadeResult,
   EdgeRecord,
@@ -63,7 +64,7 @@ export async function getGraphDetail(
   if (!graph) return null;
   const nodes = await db
     .prepare(
-      `SELECT id, graph_id, title, body, x, y, created_at, updated_at
+      `SELECT id, graph_id, title, body, x, y, width, height, created_at, updated_at
        FROM nodes WHERE graph_id = ?`,
     )
     .bind(graphId)
@@ -176,13 +177,15 @@ export async function createNode(
     body,
     x: input.x ?? 100,
     y: input.y ?? 100,
+    width: null,
+    height: null,
     created_at: ts,
     updated_at: ts,
   };
   await db
     .prepare(
-      `INSERT INTO nodes (id, graph_id, title, body, x, y, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO nodes (id, graph_id, title, body, x, y, width, height, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       node.id,
@@ -191,6 +194,8 @@ export async function createNode(
       node.body,
       node.x,
       node.y,
+      node.width,
+      node.height,
       node.created_at,
       node.updated_at,
     )
@@ -211,7 +216,8 @@ export async function formatGraphLayout(
   const positions = layoutTree(
     detail.nodes.map((node) => ({
       id: node.id,
-      height: estimateNoteHeight(node.title, node.body),
+      width: node.width,
+      height: node.height ?? estimateNoteHeight(node.title, node.body),
     })),
     detail.edges,
   );
@@ -238,12 +244,12 @@ export async function updateNode(
   userId: string,
   graphId: string,
   nodeId: string,
-  input: Partial<Pick<NodeRecord, "title" | "body" | "x" | "y">>,
+  input: Partial<Pick<NodeRecord, "title" | "body" | "x" | "y" | "width" | "height">>,
 ): Promise<NodeRecord | { error: string } | null> {
   if (!(await ownedGraph(db, userId, graphId))) return null;
   const existing = await db
     .prepare(
-      `SELECT id, graph_id, title, body, x, y, created_at, updated_at
+      `SELECT id, graph_id, title, body, x, y, width, height, created_at, updated_at
        FROM nodes WHERE id = ? AND graph_id = ?`,
     )
     .bind(nodeId, graphId)
@@ -252,20 +258,38 @@ export async function updateNode(
   if (input.body !== undefined && input.body.length > QUOTA.maxBodyChars) {
     return { error: `body too long (max ${QUOTA.maxBodyChars})` };
   }
+  if (input.width !== undefined && input.width !== null && !isValidNoteWidth(input.width)) {
+    return { error: "invalid node width" };
+  }
+  if (input.height !== undefined && input.height !== null && !isValidNoteHeight(input.height)) {
+    return { error: "invalid node height" };
+  }
   const next: NodeRecord = {
     ...existing,
     title: input.title !== undefined ? input.title.slice(0, QUOTA.maxTitleChars) : existing.title,
     body: input.body ?? existing.body,
     x: input.x ?? existing.x,
     y: input.y ?? existing.y,
+    width: input.width === undefined ? existing.width : input.width,
+    height: input.height === undefined ? existing.height : input.height,
     updated_at: nowIso(),
   };
   await db
     .prepare(
-      `UPDATE nodes SET title = ?, body = ?, x = ?, y = ?, updated_at = ?
+      `UPDATE nodes SET title = ?, body = ?, x = ?, y = ?, width = ?, height = ?, updated_at = ?
        WHERE id = ? AND graph_id = ?`,
     )
-    .bind(next.title, next.body, next.x, next.y, next.updated_at, nodeId, graphId)
+    .bind(
+      next.title,
+      next.body,
+      next.x,
+      next.y,
+      next.width,
+      next.height,
+      next.updated_at,
+      nodeId,
+      graphId,
+    )
     .run();
   await touchGraph(db, graphId);
   return next;
@@ -425,8 +449,8 @@ export async function importGraph(
     idMap.set(node.id, newId);
     await db
       .prepare(
-        `INSERT INTO nodes (id, graph_id, title, body, x, y, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO nodes (id, graph_id, title, body, x, y, width, height, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         newId,
@@ -435,6 +459,8 @@ export async function importGraph(
         String(node.body ?? "").slice(0, QUOTA.maxBodyChars),
         Number(node.x) || 0,
         Number(node.y) || 0,
+        isValidNoteWidth(node.width) ? node.width : null,
+        isValidNoteHeight(node.height) ? node.height : null,
         ts,
         ts,
       )

@@ -150,7 +150,14 @@ api.post("/graphs/:graphId/nodes", requireScope("graph:write"), async (c) => {
 
 api.patch("/graphs/:graphId/nodes/:nodeId", requireScope("graph:write"), async (c) => {
   const body = await c.req
-    .json<{ title?: string; body?: string; x?: number; y?: number }>()
+    .json<{
+      title?: string;
+      body?: string;
+      x?: number;
+      y?: number;
+      width?: number | null;
+      height?: number | null;
+    }>()
     .catch(() => null);
   if (!body) return badRequest(c, "invalid body");
   const node = await updateNode(

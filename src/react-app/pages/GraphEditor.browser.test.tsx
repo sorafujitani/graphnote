@@ -1,4 +1,4 @@
-import { waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser/context";
 import {
@@ -18,13 +18,26 @@ import {
 const twoNotes = () => [note("n1", 0, 0, "Alpha"), note("n2", 520, 40, "Beta")];
 
 describe("customer-facing editor copy", () => {
-  it("uses board and card language while keeping shortcuts secondary", async () => {
+  it("uses node language and keeps secondary actions in the menu", async () => {
     await mountEditor(twoNotes(), [link("e1", "n1", "n2")]);
 
     expect(document.body).toHaveTextContent("ボード一覧");
-    expect(document.body).toHaveTextContent("カード 2枚 · つながり 1本");
+    expect(document.body).toHaveTextContent("ノード 2個 · つながり 1本");
     expect(document.body).toHaveTextContent("基本操作");
+    expect(document.body).not.toHaveTextContent("下位を選択");
     expect(document.querySelector("aside details")).not.toHaveAttribute("open");
+    expect(screen.queryByRole("button", { name: "ダウンロード" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "ログアウト" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "メニュー" }));
+
+    expect(screen.getByRole("button", { name: "ダウンロード" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument();
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "ダウンロード" })).not.toBeInTheDocument();
+    });
   });
 
   it("uses friendly placeholders instead of implementation terms", async () => {
@@ -113,6 +126,36 @@ describe("linking two notes", () => {
   });
 });
 
+describe("removing a connection", () => {
+  it("selects a line and removes only that connection", async () => {
+    const api = await mountEditor(twoNotes(), [link("e1", "n1", "n2")]);
+    const edge = document.querySelector<SVGGElement>('.react-flow__edge[data-id="e1"]');
+    const hitArea = edge?.querySelector<SVGPathElement>(".react-flow__edge-interaction");
+    const path = edge?.querySelector<SVGPathElement>(".react-flow__edge-path");
+    if (!edge || !hitArea || !path) throw new Error("connection e1 is not on the canvas");
+    const midpoint = path.getPointAtLength(path.getTotalLength() / 2);
+    const screenMatrix = path.getScreenCTM();
+    if (!screenMatrix) throw new Error("connection e1 has no screen transform");
+    const screenPoint = new DOMPoint(midpoint.x, midpoint.y).matrixTransform(screenMatrix);
+    const hitBox = hitArea.getBoundingClientRect();
+    expect(document.elementFromPoint(screenPoint.x, screenPoint.y)).toBe(hitArea);
+
+    await userEvent.click(hitArea, {
+      position: { x: screenPoint.x - hitBox.x, y: screenPoint.y - hitBox.y },
+    });
+
+    await waitFor(() => expect(edge).toHaveClass("selected"));
+    await userEvent.click(screen.getByRole("button", { name: "つながりを削除" }));
+
+    await waitFor(() => {
+      expect(api.matching("DELETE", "/edges/e1")).toHaveLength(1);
+      expect(document.querySelector('.react-flow__edge[data-id="e1"]')).not.toBeInTheDocument();
+    });
+    expect(api.matching("POST", "/nodes/delete")).toEqual([]);
+    expect(document.querySelectorAll(".react-flow__node")).toHaveLength(2);
+  });
+});
+
 describe("moving a note", () => {
   it("drags from the title text", async () => {
     // Reported as "I meant to move it and ended up typing".
@@ -181,6 +224,60 @@ describe("moving a note", () => {
 
     expect(Math.round(cardBox("n1").x - before.x)).toBe(0);
     expect(document.activeElement).toBe(fieldEditor("n1", "title"));
+  });
+});
+
+describe("resizing a note", () => {
+  it("resizes from a corner and saves the new size", async () => {
+    const api = await mountEditor([note("n1", 0, 0, "Resizable")]);
+    await userEvent.click(cardElement("n1"));
+    const node = cardElement("n1").closest<HTMLElement>(".react-flow__node");
+    await waitFor(() => expect(node).toHaveClass("selected"));
+    const handle = node?.querySelector<HTMLElement>(
+      ".react-flow__resize-control.handle.bottom.right",
+    );
+    if (!handle) throw new Error("selected note has no bottom-right resize handle");
+    for (const side of ["top", "right", "bottom", "left"]) {
+      const line = node?.querySelector<HTMLElement>(`.react-flow__resize-control.line.${side}`);
+      if (!line) throw new Error(`selected note has no ${side} resize line`);
+      const hitBox = line.getBoundingClientRect();
+      expect(side === "left" || side === "right" ? hitBox.width : hitBox.height).toBeGreaterThan(7);
+    }
+    const before = cardBox("n1");
+    const box = handle.getBoundingClientRect();
+    const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    expect(document.elementFromPoint(from.x, from.y)).toBe(handle);
+    const dropTarget = document.createElement("div");
+    Object.assign(dropTarget.style, {
+      position: "fixed",
+      left: `${from.x + 120}px`,
+      top: `${from.y + 80}px`,
+      width: "2px",
+      height: "2px",
+    });
+    document.body.append(dropTarget);
+
+    await userEvent.dragAndDrop(handle, dropTarget);
+    dropTarget.remove();
+
+    await waitFor(() => expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(1));
+    const saved = api.matching("PATCH", "/nodes/n1").at(-1)?.body;
+    expect(saved?.width).toBeGreaterThan(280);
+    expect(saved?.height).toBeGreaterThan(100);
+    await waitFor(() => {
+      const after = cardBox("n1");
+      expect(after.width - before.width).toBeGreaterThan(90);
+      expect(after.height - before.height).toBeGreaterThan(50);
+    });
+  });
+
+  it("restores a saved size", async () => {
+    await mountEditor([note("n1", 0, 0, "Saved size", "", { width: 420, height: 220 })]);
+
+    expect(cardElement("n1").closest(".react-flow__node")).toHaveStyle({
+      width: "420px",
+      height: "220px",
+    });
   });
 });
 

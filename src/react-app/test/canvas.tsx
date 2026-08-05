@@ -21,8 +21,26 @@ export type ApiStub = FetchStub & {
   createdEdges: string[];
 };
 
-export function note(id: string, x: number, y: number, title = id, body = ""): NodeRecord {
-  return { id, graph_id: GRAPH_ID, title, body, x, y, created_at: TS, updated_at: TS };
+export function note(
+  id: string,
+  x: number,
+  y: number,
+  title = id,
+  body = "",
+  size: { width: number; height: number } | null = null,
+): NodeRecord {
+  return {
+    id,
+    graph_id: GRAPH_ID,
+    title,
+    body,
+    x,
+    y,
+    width: size?.width ?? null,
+    height: size?.height ?? null,
+    created_at: TS,
+    updated_at: TS,
+  };
 }
 
 export function link(id: string, source_id: string, target_id: string): EdgeRecord {

@@ -51,7 +51,7 @@ export function useGraphList({ onOpen }: UseGraphListOptions) {
   }
 
   async function onDelete(graphId: string) {
-    if (!confirm("このボードと、中にあるすべてのカードを削除しますか？")) return;
+    if (!confirm("このボードと、中にあるすべてのノードを削除しますか？")) return;
     try {
       await api.deleteGraph(graphId);
       await refresh();

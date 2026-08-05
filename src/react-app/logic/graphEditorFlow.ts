@@ -12,13 +12,9 @@ export const EDGE_MARKER = {
   color: EDGE_COLOR,
 };
 
-export function presentEdges(
-  edges: EdgeRecord[],
-  cascadeIds: Set<string>,
-  selectedEdgeIds: Set<string>,
-): Edge[] {
+export function presentEdges(edges: EdgeRecord[], selectedEdgeIds: Set<string>): Edge[] {
   return edges.map((edge) => {
-    const hot = cascadeIds.has(edge.id) || selectedEdgeIds.has(edge.id);
+    const hot = selectedEdgeIds.has(edge.id);
     return {
       id: edge.id,
       source: edge.source_id,
@@ -38,23 +34,29 @@ export function presentEdges(
 export function presentNodes(
   records: NodeRecord[],
   selectedIds: string[],
-  cascadeIds: string[],
   parentId: string | null,
   editRequest: EditRequest | null,
   previousNodes: AppNode[],
 ): AppNode[] {
   const selectedSet = new Set(selectedIds);
-  const cascadeSet = new Set(cascadeIds);
   const previousPositions = new Map(previousNodes.map((node) => [node.id, node.position] as const));
   return records.map((node) => ({
     id: node.id,
     type: "note" as const,
     position: previousPositions.get(node.id) ?? { x: node.x, y: node.y },
+    ...(node.width === null && node.height === null
+      ? {}
+      : {
+          style: {
+            ...(node.width === null ? {} : { width: node.width }),
+            ...(node.height === null ? {} : { height: node.height }),
+          },
+        }),
     selected: selectedSet.has(node.id),
     data: {
       title: node.title,
       body: node.body,
-      inCascade: cascadeSet.has(node.id),
+      manuallySized: node.width !== null || node.height !== null,
       activeParent: parentId === node.id,
       ...(editRequest?.nodeId === node.id
         ? { editRequest: { field: editRequest.field, nonce: editRequest.nonce } }

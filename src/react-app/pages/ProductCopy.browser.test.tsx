@@ -31,7 +31,7 @@ describe("customer-facing product copy", () => {
     expect(document.body).not.toHaveTextContent("考えを、カードでつなげよう。");
   });
 
-  it("uses boards and cards instead of implementation terminology", async () => {
+  it("uses boards and nodes consistently", async () => {
     stub = stubFetch(({ method, path }) => {
       if (method === "GET" && path === "/api/graphs") return { graphs: [] };
       return undefined;
@@ -47,6 +47,7 @@ describe("customer-facing product copy", () => {
 
     await waitFor(() => expect(document.body).toHaveTextContent("最初のボードを作りましょう"));
     expect(document.body).toHaveTextContent("新しいボード");
+    expect(document.body).toHaveTextContent("ノードをまとめられます");
     expect(document.body).toHaveTextContent("連携設定");
     expect(document.body).toHaveTextContent("アカウントを削除");
   });

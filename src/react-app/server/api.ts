@@ -66,7 +66,7 @@ export const api = {
   updateNode: (
     graphId: string,
     nodeId: string,
-    input: Partial<Pick<NodeRecord, "title" | "body" | "x" | "y">>,
+    input: Partial<Pick<NodeRecord, "title" | "body" | "x" | "y" | "width" | "height">>,
   ) =>
     request<{ node: NodeRecord }>(`/api/graphs/${graphId}/nodes/${nodeId}`, {
       method: "PATCH",
