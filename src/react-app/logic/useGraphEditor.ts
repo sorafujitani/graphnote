@@ -18,8 +18,9 @@ import {
 } from "react";
 import type { EdgeRecord, Graph, NodeRecord } from "../../shared/types";
 import { placeChildPosition } from "../../shared/placeChild";
-import { ApiError, api } from "../server/api";
 import { isEditableTarget, nearestNodeId } from "../lib/keyboard";
+import { userMessage } from "../lib/userMessage";
+import { ApiError, api } from "../server/api";
 import { presentEdges, presentNodes } from "./graphEditorFlow";
 import type { AppNode, EditRequest } from "./graphEditorTypes";
 
@@ -109,7 +110,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
           setNodeRecords((prev) => prev.map((item) => (item.id === node.id ? node : item)));
         })
         .catch((err) => {
-          setError(err instanceof ApiError ? err.message : "save failed");
+          setError(userMessage(err, "カードを保存できませんでした。もう一度お試しください。"));
         });
     },
     [graphId],
@@ -138,7 +139,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         });
       } catch (err) {
         if (controller.signal.aborted) return;
-        setError(err instanceof ApiError ? err.message : "failed to load graph");
+        setError(userMessage(err, "ボードを読み込めませんでした。もう一度お試しください。"));
       }
     })();
     return () => controller.abort();
@@ -234,7 +235,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
           prev.some((item) => item.id === edge.id) ? prev : [...prev, edge],
         );
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "edge create failed");
+        setError(userMessage(err, "カードをつなげませんでした。もう一度お試しください。"));
       }
     },
     [graphId],
@@ -266,7 +267,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         // Tab/child path must never create an unlinked node.
         if (opts?.requireParent) {
           if (!parentId || !parent) {
-            setError("Parent node not found — focus a node first (↑↓←→ or F)");
+            setError("つなぎ元のカードが見つかりません。先にカードを1枚選んでください。");
             return null;
           }
         }
@@ -285,7 +286,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
             ? placeChildPosition(parent, siblingNodes)
             : { x: 120 + offset, y: 120 + offset });
         const { node } = await api.createNode(graphId, {
-          title: "New node",
+          title: "新しいカード",
           x: pos.x,
           y: pos.y,
         });
@@ -310,7 +311,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
             if (opts?.requireParent) {
               await api.deleteNodes(graphId, [node.id], false);
               setNodeRecords((prev) => prev.filter((item) => item.id !== node.id));
-              setError("Failed to link child — try again");
+              setError("子カードをつなげませんでした。もう一度お試しください。");
               return null;
             }
           } else {
@@ -323,7 +324,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         } else if (opts?.requireParent) {
           await api.deleteNodes(graphId, [node.id], false);
           setNodeRecords((prev) => prev.filter((item) => item.id !== node.id));
-          setError("Failed to link child — try again");
+          setError("子カードをつなげませんでした。もう一度お試しください。");
           return null;
         }
 
@@ -335,7 +336,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         }
         return node;
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "node create failed");
+        setError(userMessage(err, "カードを追加できませんでした。もう一度お試しください。"));
         return null;
       } finally {
         setBusy(false);
@@ -351,9 +352,9 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       const first = nodeRecordsRef.current[0]?.id;
       if (first) {
         focusParent(first);
-        setError("Focused first node — press Tab again to add a child");
+        setError("最初のカードを選びました。もう一度Tabを押すと子カードを追加できます。");
       } else {
-        setError("No nodes yet — press N to create one");
+        setError("カードがまだありません。Nを押すと追加できます。");
       }
       return;
     }
@@ -371,7 +372,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       selectNodes(result.nodeIds);
       revealNodes();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "cascade select failed");
+      setError(userMessage(err, "下位カードを選択できませんでした。もう一度お試しください。"));
     } finally {
       setBusy(false);
     }
@@ -415,7 +416,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         setLinkSourceId(null);
         revealNodes();
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "delete failed");
+        setError(userMessage(err, "選択した項目を削除できませんでした。もう一度お試しください。"));
       } finally {
         setBusy(false);
       }
@@ -437,9 +438,9 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       a.download = `${payload.graph.title || "graphnote"}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      alert("Download started. A backup copy is also saved to your account.");
+      alert("バックアップをダウンロードしました。アカウントにもコピーを保存しています。");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "export failed");
+      setError(userMessage(err, "バックアップを作成できませんでした。もう一度お試しください。"));
     } finally {
       setBusy(false);
     }
@@ -464,7 +465,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       updateInternalsRef.current?.(detail.nodes.map((node) => node.id));
       void flowRef.current?.fitView({ padding: 0.25, duration: 300 });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not arrange notes");
+      setError(userMessage(err, "カードを整理できませんでした。もう一度お試しください。"));
     } finally {
       setBusy(false);
     }
@@ -536,7 +537,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       }
       const first = nodeRecordsRef.current[0]?.id;
       if (first) focusParent(first);
-      else setError("No nodes yet — press N to create one");
+      else setError("カードがまだありません。Nを押すと追加できます。");
       return;
     }
 
@@ -606,7 +607,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         const prev = linkSourceIdRef.current;
         if (!prev) {
           setLinkSourceId(current);
-          setError("Link: select another node and press L");
+          setError("つなぎ先のカードを選び、もう一度Lを押してください。");
           return;
         }
         if (prev !== current) {
@@ -703,7 +704,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         prev.map((item) => (item.id === updated.node.id ? updated.node : item)),
       );
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "position save failed");
+      setError(userMessage(err, "カードの位置を保存できませんでした。もう一度お試しください。"));
     }
   }
 
@@ -714,7 +715,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       const { graph: next } = await api.renameGraph(graphId, title);
       setGraph(next);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "rename failed");
+      setError(userMessage(err, "ボード名を変更できませんでした。もう一度お試しください。"));
     }
   }
 

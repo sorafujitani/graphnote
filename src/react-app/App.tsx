@@ -72,7 +72,7 @@ export default function App() {
   if (screen.name === "loading") {
     return (
       <div className="grid h-full min-h-screen place-items-center">
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">準備しています…</p>
       </div>
     );
   }
@@ -124,7 +124,8 @@ export default function App() {
       onLogout={() => void logout()}
       onOpenTokens={() => go({ name: "tokens" })}
       onDeleteAccount={async () => {
-        if (!confirm("Delete your account and all notes permanently?")) return;
+        if (!confirm("アカウントとすべてのボードを完全に削除しますか？この操作は取り消せません。"))
+          return;
         try {
           await api.deleteAccount();
         } catch (error) {

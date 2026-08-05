@@ -149,7 +149,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
 
   return (
     <div className="note-shell">
-      {data.activeParent ? <div className="note-parent-badge">Tab · child</div> : null}
+      {data.activeParent ? <div className="note-parent-badge">Tabで子カード</div> : null}
       <div
         className={`note-card${active ? " is-active" : ""}${data.activeParent && !selected ? " is-parent" : ""}`}
       >
@@ -160,8 +160,8 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
             data-node-id={id}
             data-node-field="title"
             value={title}
-            placeholder="Untitled"
-            aria-label={`Title for node ${id}`}
+            placeholder="タイトルなし"
+            aria-label="カードのタイトル"
             rows={1}
             onMouseDown={stopMouse}
             onClick={stopMouse}
@@ -187,7 +187,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
             data-node-field="title"
             onDoubleClick={() => setEditingTitle(true)}
           >
-            {title.trim() || <span className="note-placeholder">Untitled</span>}
+            {title.trim() || <span className="note-placeholder">タイトルなし</span>}
           </div>
         )}
         {editingBody ? (
@@ -197,8 +197,8 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
             data-node-id={id}
             data-node-field="body"
             value={body}
-            placeholder="Write markdown…"
-            aria-label={`Markdown body for node ${id}`}
+            placeholder="メモを書く…"
+            aria-label="カードの本文"
             rows={3}
             onMouseDown={stopMouse}
             onClick={stopMouse}
@@ -221,7 +221,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
                 </Markdown>
               </div>
             ) : (
-              <span className="note-placeholder">Write here…</span>
+              <span className="note-placeholder">メモを書く…</span>
             )}
           </div>
         )}

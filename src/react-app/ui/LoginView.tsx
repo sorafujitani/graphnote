@@ -12,15 +12,8 @@ export function LoginView({ controller, onOpenLegal }: Props) {
     <div className="relative grid h-full min-h-screen place-items-center overflow-hidden p-8">
       <div className="landing-bg absolute inset-0 z-0" aria-hidden />
       <main className="relative z-10 grid w-full max-w-[40rem] gap-4">
-        <p className="m-0 text-[clamp(2.5rem,8vw,4.5rem)] leading-none font-bold tracking-[-0.04em]">
+        <p className="font-brand m-0 text-[clamp(2.5rem,8vw,4.5rem)] leading-none font-bold tracking-[-0.04em]">
           graphnote
-        </p>
-        <h1 className="m-0 text-[clamp(1.15rem,3vw,1.5rem)] font-medium text-muted">
-          Connect your ideas on a canvas
-        </h1>
-        <p className="m-0 max-w-[34rem] text-[1.05rem] text-muted">
-          Personal notes that follow how you think — short cues, links between topics, and room to
-          grow without turning into long documents.
         </p>
         <div className="mt-2">
           <button
@@ -29,28 +22,28 @@ export function LoginView({ controller, onOpenLegal }: Props) {
             disabled={state.busy}
             onClick={() => void actions.onGoogle()}
           >
-            {state.busy ? "Signing in…" : "Sign in with Google"}
+            {state.busy ? "ログインしています…" : "Googleでログイン"}
           </button>
         </div>
         {state.error ? <p className="m-0 text-danger">{state.error}</p> : null}
         <p className="mt-2 mb-0 text-sm text-muted">
-          By continuing you agree to the{" "}
+          続行すると、{" "}
           <button
             type="button"
             className="border-0 bg-transparent p-0 text-accent underline underline-offset-2"
             onClick={() => onOpenLegal("terms")}
           >
-            Terms
+            利用規約
           </button>{" "}
-          and{" "}
+          と{" "}
           <button
             type="button"
             className="border-0 bg-transparent p-0 text-accent underline underline-offset-2"
             onClick={() => onOpenLegal("privacy")}
           >
-            Privacy
+            プライバシーポリシー
           </button>
-          .
+          に同意したものとみなされます。
         </p>
       </main>
     </div>

@@ -43,7 +43,7 @@ export function CommandLine({ command, hint }: Props) {
           type="button"
           onClick={() => void copy()}
         >
-          {copied ? "Copied" : "Copy"}
+          {copied ? "コピーしました" : "コピー"}
         </button>
       </div>
       {hint ? (

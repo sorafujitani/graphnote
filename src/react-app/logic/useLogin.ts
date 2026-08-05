@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { userMessage } from "../lib/userMessage";
 import { authClient } from "../server/auth";
 
 export function useLogin() {
@@ -14,7 +15,7 @@ export function useLogin() {
         callbackURL: window.location.pathname || "/",
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "sign-in failed");
+      setError(userMessage(err, "ログインできませんでした。時間をおいてもう一度お試しください。"));
       setBusy(false);
     }
   }

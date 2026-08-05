@@ -1,7 +1,8 @@
 import { useEffect, useEffectEvent, useState, type FormEvent } from "react";
 import type { Graph } from "../../shared/types";
-import { ApiError, api } from "../server/api";
 import { isEditableTarget } from "../lib/keyboard";
+import { userMessage } from "../lib/userMessage";
+import { api } from "../server/api";
 
 export type UseGraphListOptions = {
   onOpen: (graphId: string) => void;
@@ -26,7 +27,7 @@ export function useGraphList({ onOpen }: UseGraphListOptions) {
       );
     } catch (err) {
       if (signal?.aborted) return;
-      setError(err instanceof ApiError ? err.message : "failed to load");
+      setError(userMessage(err, "ボードを読み込めませんでした。もう一度お試しください。"));
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -41,21 +42,21 @@ export function useGraphList({ onOpen }: UseGraphListOptions) {
   async function onCreate(event?: FormEvent) {
     event?.preventDefault();
     try {
-      const detail = await api.createGraph(title.trim() || "Untitled note");
+      const detail = await api.createGraph(title.trim() || "タイトルなしのボード");
       setTitle("");
       onOpen(detail.graph.id);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "create failed");
+      setError(userMessage(err, "ボードを作成できませんでした。もう一度お試しください。"));
     }
   }
 
   async function onDelete(graphId: string) {
-    if (!confirm("Delete this note and everything inside it?")) return;
+    if (!confirm("このボードと、中にあるすべてのカードを削除しますか？")) return;
     try {
       await api.deleteGraph(graphId);
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "delete failed");
+      setError(userMessage(err, "ボードを削除できませんでした。もう一度お試しください。"));
     }
   }
 

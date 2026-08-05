@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import type { ApiTokenAccess, ApiTokenMeta } from "../../shared/types";
-import { ApiError, api } from "../server/api";
+import { userMessage } from "../lib/userMessage";
+import { api } from "../server/api";
 export function useTokens() {
   const [tokens, setTokens] = useState<ApiTokenMeta[]>([]);
-  const [name, setName] = useState("My device");
+  const [name, setName] = useState("自分のパソコン");
   const [access, setAccess] = useState<ApiTokenAccess>("read");
   const [created, setCreated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +19,7 @@ export function useTokens() {
 
   useEffect(() => {
     void refresh().catch((err) => {
-      setError(err instanceof ApiError ? err.message : "Could not load access keys");
+      setError(userMessage(err, "連携キーを読み込めませんでした。もう一度お試しください。"));
     });
   }, []);
 
@@ -27,23 +28,23 @@ export function useTokens() {
     setError(null);
     setCreated(null);
     try {
-      const result = await api.createToken(name.trim() || "My device", access);
+      const result = await api.createToken(name.trim() || "自分のパソコン", access);
       setCreated(result.token);
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not create access key");
+      setError(userMessage(err, "連携キーを作成できませんでした。もう一度お試しください。"));
     } finally {
       setBusy(false);
     }
   }
 
   async function onDelete(id: string) {
-    if (!confirm("Remove this access key? Apps using it will stop working.")) return;
+    if (!confirm("この連携キーを無効にしますか？利用中のアプリから接続できなくなります。")) return;
     try {
       await api.deleteToken(id);
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not remove access key");
+      setError(userMessage(err, "連携キーを無効にできませんでした。もう一度お試しください。"));
     }
   }
 

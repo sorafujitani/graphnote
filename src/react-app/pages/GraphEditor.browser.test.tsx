@@ -17,6 +17,24 @@ import {
 
 const twoNotes = () => [note("n1", 0, 0, "Alpha"), note("n2", 520, 40, "Beta")];
 
+describe("customer-facing editor copy", () => {
+  it("uses board and card language while keeping shortcuts secondary", async () => {
+    await mountEditor(twoNotes(), [link("e1", "n1", "n2")]);
+
+    expect(document.body).toHaveTextContent("ボード一覧");
+    expect(document.body).toHaveTextContent("カード 2枚 · つながり 1本");
+    expect(document.body).toHaveTextContent("基本操作");
+    expect(document.querySelector("aside details")).not.toHaveAttribute("open");
+  });
+
+  it("uses friendly placeholders instead of implementation terms", async () => {
+    await mountEditor([note("n1", 0, 0, "", "")]);
+
+    expect(cardElement("n1")).toHaveTextContent("タイトルなし");
+    expect(cardElement("n1")).toHaveTextContent("メモを書く…");
+  });
+});
+
 describe("linking two notes", () => {
   it("accepts a drop anywhere on the target card", async () => {
     const api = await mountEditor(twoNotes());
