@@ -21,10 +21,10 @@ export function TokensView({ controller, onBack }: Props) {
         <button className="btn btn-ghost" type="button" onClick={onBack}>
           戻る
         </button>
-        <h1 className="m-0 text-xl font-bold">外部サービスとの連携</h1>
+        <h1 className="m-0 text-xl font-bold">CLI連携</h1>
       </header>
       <p className="text-muted">
-        他のアプリや端末からノートを利用するための連携キーを作成できます。キーの有効期間は90日です。
+        CLIからノートを利用するための連携キーを作成できます。キーの有効期間は90日です。
       </p>
       {state.error ? <p className="m-0 text-danger">{state.error}</p> : null}
       {state.created ? (
@@ -32,7 +32,7 @@ export function TokensView({ controller, onBack }: Props) {
           <p className="mt-0 mb-2 font-semibold">このキーは今だけ表示されます</p>
           <code className="break-all font-mono">{state.created}</code>
           <p className="mt-3 mb-[0.35rem] text-sm text-muted">
-            コピーして安全な場所に保管してください。コマンドラインでは次のコマンドから設定できます。
+            コピーして安全な場所に保管してください。CLIでは次のコマンドから設定できます。
           </p>
           <CommandLine command="gqn config set-token" />
         </div>
@@ -57,8 +57,8 @@ export function TokensView({ controller, onBack }: Props) {
             }
             className="input-surface"
           >
-            <option value="read">見るだけ</option>
-            <option value="write">閲覧・編集</option>
+            <option value="read">読み取り</option>
+            <option value="write">読み取り・編集</option>
           </select>
         </label>
         <button
@@ -80,7 +80,7 @@ export function TokensView({ controller, onBack }: Props) {
               <div>{token.name || "名前のないキー"}</div>
               <div className="text-sm text-muted">
                 {`${dateTimeFormat.format(new Date(token.created_at))}に作成`}
-                {` · ${token.scopes.includes("graph:write") ? "閲覧・編集" : "見るだけ"}`}
+                {` · ${token.scopes.includes("graph:write") ? "読み取り・編集" : "読み取り"}`}
                 {` · ${dateFormat.format(new Date(token.expires_at))}まで`}
                 {token.last_used_at
                   ? ` · 最終利用 ${dateTimeFormat.format(new Date(token.last_used_at))}`
@@ -104,11 +104,10 @@ export function TokensView({ controller, onBack }: Props) {
       ) : null}
 
       <details className="install-panel panel mt-6 p-4">
-        <summary className="cursor-pointer font-semibold">開発者向けの設定を見る</summary>
+        <summary className="cursor-pointer font-semibold">CLIでの使い方</summary>
         <div className="mt-4 grid gap-[0.6rem]">
           <p className="m-0 text-sm text-muted">
-            コマンドラインやAIエージェントからgraphnoteを使うための設定です。Node.js
-            20以上が必要です。
+            gqn CLIやAIエージェントからgraphnoteを使うための設定です。Node.js 20以上が必要です。
           </p>
           <CommandLine
             command={`curl -fsSL ${state.origin}/install.sh | sh`}
@@ -119,6 +118,14 @@ export function TokensView({ controller, onBack }: Props) {
             hint="AIエージェントにgraphnoteの操作スキルを追加します。"
           />
           <CommandLine command="gqn graphs list" hint="連携できたことを確認します。" />
+          <a
+            className="mt-1 w-fit text-sm text-accent underline underline-offset-4"
+            href="https://github.com/sorafujitani/graphnote"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHubで詳しい使い方を見る
+          </a>
         </div>
       </details>
     </div>

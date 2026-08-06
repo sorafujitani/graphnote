@@ -49,7 +49,7 @@ describe("customer-facing product copy", () => {
     expect(document.body).toHaveTextContent("新しいノート");
     expect(document.body).not.toHaveTextContent("ボード");
     expect(document.body).toHaveTextContent("ノードをまとめられます");
-    expect(document.body).toHaveTextContent("連携設定");
+    expect(document.body).toHaveTextContent("CLI連携");
     expect(document.body).toHaveTextContent("アカウントを削除");
   });
 });

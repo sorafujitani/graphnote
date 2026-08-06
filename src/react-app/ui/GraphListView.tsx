@@ -34,7 +34,7 @@ export function GraphListView({
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="btn btn-secondary" type="button" onClick={onOpenTokens}>
-            連携設定
+            CLI連携
           </button>
           <button className="btn btn-secondary" type="button" onClick={onLogout}>
             ログアウト

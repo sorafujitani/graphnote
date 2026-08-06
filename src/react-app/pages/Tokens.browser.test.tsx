@@ -57,22 +57,31 @@ function commands(): string[] {
 }
 
 describe("install guidance", () => {
-  it("keeps developer setup secondary to plain-language integration controls", async () => {
+  it("names the screen and permissions for CLI users", async () => {
     await mountTokens();
 
-    expect(document.body).toHaveTextContent("外部サービスとの連携");
-    expect(document.body).toHaveTextContent("見るだけ");
-    expect(document.body).toHaveTextContent("開発者向けの設定を見る");
+    expect(document.body).toHaveTextContent("CLI連携");
+    expect(document.body).toHaveTextContent("読み取り");
+    expect(document.body).toHaveTextContent("CLIでの使い方");
+    expect(document.body).not.toHaveTextContent("見るだけ");
+    expect(document.body).not.toHaveTextContent("開発者向けの設定を見る");
     expect(document.querySelector("details.install-panel")).not.toHaveAttribute("open");
   });
 
   it("offers the installer for the host the page came from", async () => {
     await mountTokens();
 
+    await userEvent.click(document.querySelector("details.install-panel summary") as HTMLElement);
+
     // A hardcoded https://graphnote.app here would hand local users a command
     // that installs from production.
     expect(commands()).toContain(`curl -fsSL ${window.location.origin}/install.sh | sh`);
     expect(commands()).toContain("npx skills add sorafujitani/graphnote");
+    expect(
+      document.querySelector<HTMLAnchorElement>(
+        "a[href='https://github.com/sorafujitani/graphnote']",
+      ),
+    ).toHaveTextContent("GitHubで詳しい使い方を見る");
   });
 
   it("shows a token-free setup command once a key exists", async () => {
