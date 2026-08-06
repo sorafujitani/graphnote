@@ -124,7 +124,7 @@ export default function App() {
       onLogout={() => void logout()}
       onOpenTokens={() => go({ name: "tokens" })}
       onDeleteAccount={async () => {
-        if (!confirm("アカウントとすべてのボードを完全に削除しますか？この操作は取り消せません。"))
+        if (!confirm("アカウントとすべてのノートを完全に削除しますか？この操作は取り消せません。"))
           return;
         try {
           await api.deleteAccount();

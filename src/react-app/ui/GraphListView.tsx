@@ -27,7 +27,7 @@ export function GraphListView({
       <header className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="font-brand m-0 font-semibold text-muted">graphnote</p>
-          <h1 className="mt-[0.2rem] text-[2rem] leading-tight font-bold">あなたのボード</h1>
+          <h1 className="mt-[0.2rem] text-[2rem] leading-tight font-bold">あなたのノート</h1>
           <p className="mt-2 mb-0 text-sm text-muted">
             考えたいテーマごとに、ノードをまとめられます。
           </p>
@@ -47,7 +47,7 @@ export function GraphListView({
         onSubmit={(event) => void actions.onCreate(event)}
       >
         <label className="grid gap-2 text-sm font-medium">
-          新しいボード
+          新しいノート
           <input
             data-new-note-input
             className="input-surface"
@@ -57,12 +57,12 @@ export function GraphListView({
           />
         </label>
         <button className="btn btn-accent" type="submit">
-          ボードを作る
+          ノートを作る
         </button>
       </form>
 
       {state.error ? <p className="m-0 text-danger">{state.error}</p> : null}
-      {state.loading ? <p className="text-muted">ボードを読み込んでいます…</p> : null}
+      {state.loading ? <p className="text-muted">ノートを読み込んでいます…</p> : null}
 
       <div className="grid gap-3">
         {state.graphs.map((graph, index) => {
@@ -95,7 +95,7 @@ export function GraphListView({
         })}
         {!state.loading && state.graphs.length === 0 ? (
           <div className="panel grid place-items-center gap-2 px-6 py-12 text-center">
-            <p className="m-0 text-lg font-semibold">最初のボードを作りましょう</p>
+            <p className="m-0 text-lg font-semibold">最初のノートを作りましょう</p>
             <p className="m-0 max-w-md text-sm text-muted">
               気になっていることや計画したいことを、ひとつのテーマから始められます。
             </p>

@@ -18,14 +18,15 @@ import {
 const twoNotes = () => [note("n1", 0, 0, "Alpha"), note("n2", 520, 40, "Beta")];
 
 describe("customer-facing editor copy", () => {
-  it("uses node language and keeps secondary actions in the menu", async () => {
+  it("keeps the canvas full width and secondary actions in the menu", async () => {
     await mountEditor(twoNotes(), [link("e1", "n1", "n2")]);
 
-    expect(document.body).toHaveTextContent("ボード一覧");
-    expect(document.body).toHaveTextContent("ノード 2個 · つながり 1本");
-    expect(document.body).toHaveTextContent("基本操作");
+    expect(document.body).toHaveTextContent("ノート一覧");
+    expect(document.body).not.toHaveTextContent("ボード");
+    expect(document.querySelector("aside")).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("基本操作");
+    expect(document.body).not.toHaveTextContent("キーボード操作");
     expect(document.body).not.toHaveTextContent("下位を選択");
-    expect(document.querySelector("aside details")).not.toHaveAttribute("open");
     expect(screen.queryByRole("button", { name: "ダウンロード" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "ログアウト" })).not.toBeInTheDocument();
 

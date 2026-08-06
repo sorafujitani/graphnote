@@ -25,7 +25,7 @@ const ariaLabelConfig = {
   "controls.zoomOut.ariaLabel": "縮小",
   "controls.fitView.ariaLabel": "全体を表示",
   "controls.interactive.ariaLabel": "編集操作を切り替え",
-  "minimap.ariaLabel": "ボード全体の地図",
+  "minimap.ariaLabel": "ノート全体の地図",
   "handle.ariaLabel": "ノードをつなぐ",
 } as const;
 
@@ -75,7 +75,7 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
       <header className="relative z-20 flex items-center gap-3 border-b border-line bg-canvas/90 px-4 py-[0.85rem] backdrop-blur-[10px]">
         <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto">
           <button className="btn btn-secondary" type="button" onClick={onBack} title="⌘[">
-            ボード一覧
+            ノート一覧
           </button>
           <input
             value={state.titleDraft}
@@ -186,7 +186,7 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
         </div>
       </header>
 
-      <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_260px]">
+      <div className="relative h-full min-h-0">
         <div
           ref={refs.canvasRef}
           tabIndex={0}
@@ -244,51 +244,14 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
             </ReactFlow>
           </NoteActionsProvider>
         </div>
-
-        <aside className="overflow-auto border-l border-line bg-surface p-4">
-          {state.error ? <p className="m-0 text-danger">{state.error}</p> : null}
-          <p className="mt-0 text-muted">
-            {state.graph
-              ? `ノード ${state.nodeCount}個 · つながり ${state.edgeCount}本`
-              : "読み込んでいます…"}
+        {state.error ? (
+          <p
+            role="status"
+            className="panel pointer-events-none absolute top-4 left-1/2 z-10 m-0 max-w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 px-4 py-3 text-sm text-danger shadow-lg"
+          >
+            {state.error}
           </p>
-          {state.selectedEdgeCount > 0 ? (
-            <p className="mt-0 mb-4 text-sm text-accent">
-              つながりを選択中です。Deleteで削除できます
-            </p>
-          ) : state.activeParentId ? (
-            <p className="mt-0 mb-4 text-sm text-accent">
-              このノードからTabで子ノードを追加できます
-            </p>
-          ) : (
-            <p className="mt-0 mb-4 text-sm text-muted">ノードを選ぶと操作を始められます</p>
-          )}
-          <p className="mt-0 mb-[0.35rem] text-[0.78rem] font-semibold text-muted">基本操作</p>
-          <div className="mb-4 text-[0.78rem] leading-[1.7] text-muted">
-            <div>ノードをドラッグ · 移動</div>
-            <div>ノードをダブルクリック · 編集</div>
-            <div>ノードの端からドラッグ · つなぐ</div>
-            <div>つながりをクリック · 選択</div>
-            <div>余白をダブルクリック · ノードを追加</div>
-          </div>
-          <details className="text-[0.78rem] text-muted">
-            <summary className="cursor-pointer font-semibold">キーボード操作</summary>
-            <div className="mt-2 leading-[1.7]">
-              <div>F / 矢印 · ノードを選ぶ</div>
-              <div>Tab · 子ノードを追加</div>
-              <div>N · ノードを追加</div>
-              <div>Enter · タイトルから本文を編集</div>
-              <div>Esc / ⌘Enter · 本文を保存</div>
-              <div>Esc · 選択を解除</div>
-              <div>Shift + 矢印 · 少し移動</div>
-              <div>L · ノードをつなぐ</div>
-              <div>Delete · 選択を削除</div>
-              <div>A · 自動整列</div>
-              <div>⌘E · ダウンロード</div>
-              <div>⌘[ · ボード一覧へ戻る</div>
-            </div>
-          </details>
-        </aside>
+        ) : null}
       </div>
     </div>
   );

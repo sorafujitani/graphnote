@@ -45,8 +45,9 @@ describe("customer-facing product copy", () => {
       />,
     );
 
-    await waitFor(() => expect(document.body).toHaveTextContent("最初のボードを作りましょう"));
-    expect(document.body).toHaveTextContent("新しいボード");
+    await waitFor(() => expect(document.body).toHaveTextContent("最初のノートを作りましょう"));
+    expect(document.body).toHaveTextContent("新しいノート");
+    expect(document.body).not.toHaveTextContent("ボード");
     expect(document.body).toHaveTextContent("ノードをまとめられます");
     expect(document.body).toHaveTextContent("連携設定");
     expect(document.body).toHaveTextContent("アカウントを削除");

@@ -24,7 +24,7 @@ export function TokensView({ controller, onBack }: Props) {
         <h1 className="m-0 text-xl font-bold">外部サービスとの連携</h1>
       </header>
       <p className="text-muted">
-        他のアプリや端末からボードを利用するための連携キーを作成できます。キーの有効期間は90日です。
+        他のアプリや端末からノートを利用するための連携キーを作成できます。キーの有効期間は90日です。
       </p>
       {state.error ? <p className="m-0 text-danger">{state.error}</p> : null}
       {state.created ? (

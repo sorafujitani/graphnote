@@ -134,7 +134,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         });
       } catch (err) {
         if (controller.signal.aborted) return;
-        setError(userMessage(err, "ボードを読み込めませんでした。もう一度お試しください。"));
+        setError(userMessage(err, "ノートを読み込めませんでした。もう一度お試しください。"));
       }
     })();
     return () => controller.abort();
@@ -735,7 +735,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       const { graph: next } = await api.renameGraph(graphId, title);
       setGraph(next);
     } catch (err) {
-      setError(userMessage(err, "ボード名を変更できませんでした。もう一度お試しください。"));
+      setError(userMessage(err, "ノート名を変更できませんでした。もう一度お試しください。"));
     }
   }
 

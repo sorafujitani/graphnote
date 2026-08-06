@@ -27,7 +27,7 @@ export function useGraphList({ onOpen }: UseGraphListOptions) {
       );
     } catch (err) {
       if (signal?.aborted) return;
-      setError(userMessage(err, "ボードを読み込めませんでした。もう一度お試しください。"));
+      setError(userMessage(err, "ノートを読み込めませんでした。もう一度お試しください。"));
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -42,21 +42,21 @@ export function useGraphList({ onOpen }: UseGraphListOptions) {
   async function onCreate(event?: FormEvent) {
     event?.preventDefault();
     try {
-      const detail = await api.createGraph(title.trim() || "タイトルなしのボード");
+      const detail = await api.createGraph(title.trim() || "タイトルなしのノート");
       setTitle("");
       onOpen(detail.graph.id);
     } catch (err) {
-      setError(userMessage(err, "ボードを作成できませんでした。もう一度お試しください。"));
+      setError(userMessage(err, "ノートを作成できませんでした。もう一度お試しください。"));
     }
   }
 
   async function onDelete(graphId: string) {
-    if (!confirm("このボードと、中にあるすべてのノードを削除しますか？")) return;
+    if (!confirm("このノートと、中にあるすべてのノードを削除しますか？")) return;
     try {
       await api.deleteGraph(graphId);
       await refresh();
     } catch (err) {
-      setError(userMessage(err, "ボードを削除できませんでした。もう一度お試しください。"));
+      setError(userMessage(err, "ノートを削除できませんでした。もう一度お試しください。"));
     }
   }
 
