@@ -13,7 +13,6 @@ import {
   NOTE_MIN_HEIGHT,
   NOTE_MIN_WIDTH,
 } from "../../shared/noteSize";
-import { useSyncedDraft } from "../lib/useSyncedDraft";
 import type { AppNode } from "../logic/graphEditorTypes";
 import { MarkdownContent } from "./MarkdownContent";
 import { useNoteActions } from "./NoteActions";
@@ -27,8 +26,8 @@ function stopMouse(event: MouseEvent) {
 
 export function Note({ id, data, selected }: NodeProps<AppNode>) {
   const { onChange, onRequestChild, onResize } = useNoteActions();
-  const [title, setTitle] = useSyncedDraft(data.title);
-  const [body, setBody] = useSyncedDraft(data.body);
+  const [title, setTitle] = useState(data.title);
+  const [body, setBody] = useState(data.body);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingBody, setEditingBody] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -43,9 +42,14 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     const request = data.editRequest;
     if (!request || request.nonce === handledEditRef.current) return;
     handledEditRef.current = request.nonce;
-    if (request.field === "title") setEditingTitle(true);
-    else setEditingBody(true);
-  }, [data.editRequest]);
+    if (request.field === "title") {
+      setTitle(data.title);
+      setEditingTitle(true);
+    } else {
+      setBody(data.body);
+      setEditingBody(true);
+    }
+  }, [data.body, data.editRequest, data.title]);
 
   useEffect(() => {
     if (!editingTitle) return;
@@ -112,7 +116,10 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
       commitTitle();
       setEditingTitle(false);
       // Wait for IME to finish on the title field before focusing body.
-      window.setTimeout(() => setEditingBody(true), 0);
+      window.setTimeout(() => {
+        setBody(data.body);
+        setEditingBody(true);
+      }, 0);
     }
   }
 
@@ -182,9 +189,12 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
             className="note-title"
             data-node-id={id}
             data-node-field="title"
-            onDoubleClick={() => setEditingTitle(true)}
+            onDoubleClick={() => {
+              setTitle(data.title);
+              setEditingTitle(true);
+            }}
           >
-            {title.trim() || <span className="note-placeholder">タイトルなし</span>}
+            {data.title.trim() || <span className="note-placeholder">タイトルなし</span>}
           </div>
         )}
         {editingBody ? (
@@ -209,10 +219,13 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
             className="note-body-preview"
             data-node-id={id}
             data-node-field="body"
-            onDoubleClick={() => setEditingBody(true)}
+            onDoubleClick={() => {
+              setBody(data.body);
+              setEditingBody(true);
+            }}
           >
-            {body.trim() ? (
-              <MarkdownContent className="note-md">{body}</MarkdownContent>
+            {data.body.trim() ? (
+              <MarkdownContent className="note-md">{data.body}</MarkdownContent>
             ) : (
               <span className="note-placeholder">メモを書く…</span>
             )}

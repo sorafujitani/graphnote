@@ -16,6 +16,7 @@ export function useLogin() {
       });
     } catch (err) {
       setError(userMessage(err, "ログインできませんでした。時間をおいてもう一度お試しください。"));
+    } finally {
       setBusy(false);
     }
   }

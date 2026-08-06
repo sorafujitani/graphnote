@@ -43,7 +43,9 @@ export function layoutTree(
     if (edge.source_id === edge.target_id) continue;
     // First parent wins for layout (keeps a tree; extra edges still render).
     if ((incoming.get(edge.target_id) ?? 0) > 0) continue;
-    children.get(edge.source_id)!.push(edge.target_id);
+    const sourceChildren = children.get(edge.source_id);
+    if (!sourceChildren) continue;
+    sourceChildren.push(edge.target_id);
     incoming.set(edge.target_id, (incoming.get(edge.target_id) ?? 0) + 1);
   }
 
@@ -56,7 +58,8 @@ export function layoutTree(
     list.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
 
   for (const id of ids) {
-    sortIds(children.get(id)!);
+    const childIds = children.get(id);
+    if (childIds) sortIds(childIds);
   }
   sortIds(roots);
 
@@ -82,7 +85,8 @@ export function layoutTree(
     const blockBottom = childTop - gap;
 
     for (const kid of kids) {
-      const kidPos = positions.get(kid)!;
+      const kidPos = positions.get(kid);
+      if (!kidPos) throw new Error(`missing layout position for child ${kid}`);
       childCenters.push(kidPos.y + heightOf(kid) / 2);
     }
 

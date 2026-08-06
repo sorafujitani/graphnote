@@ -13,6 +13,7 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -72,14 +73,25 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const edgeRecordsRef = useRef(edgeRecords);
   const busyRef = useRef(busy);
   const linkSourceIdRef = useRef(linkSourceId);
-  selectedNodeIdsRef.current = selectedNodeIds;
-  selectedEdgeIdsRef.current = selectedEdgeIds;
-  hoveredNodeIdRef.current = hoveredNodeId;
-  focusNodeIdRef.current = focusNodeId;
-  nodeRecordsRef.current = nodeRecords;
-  edgeRecordsRef.current = edgeRecords;
-  busyRef.current = busy;
-  linkSourceIdRef.current = linkSourceId;
+  useLayoutEffect(() => {
+    selectedNodeIdsRef.current = selectedNodeIds;
+    selectedEdgeIdsRef.current = selectedEdgeIds;
+    hoveredNodeIdRef.current = hoveredNodeId;
+    focusNodeIdRef.current = focusNodeId;
+    nodeRecordsRef.current = nodeRecords;
+    edgeRecordsRef.current = edgeRecords;
+    busyRef.current = busy;
+    linkSourceIdRef.current = linkSourceId;
+  }, [
+    busy,
+    edgeRecords,
+    focusNodeId,
+    hoveredNodeId,
+    linkSourceId,
+    nodeRecords,
+    selectedEdgeIds,
+    selectedNodeIds,
+  ]);
 
   const activeParentId = hoveredNodeId ?? focusNodeId ?? selectedNodeIds[0] ?? null;
 
@@ -114,12 +126,12 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   );
 
   useEffect(() => {
-    const controller = new AbortController();
+    let ignore = false;
     setError(null);
     void (async () => {
       try {
         const detail = await api.getGraph(graphId);
-        if (controller.signal.aborted) return;
+        if (ignore) return;
         setGraph(detail.graph);
         setTitleDraft(detail.graph.title);
         setNodeRecords(detail.nodes);
@@ -133,11 +145,13 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
           void flowRef.current?.fitView({ padding: 0.25 });
         });
       } catch (err) {
-        if (controller.signal.aborted) return;
+        if (ignore) return;
         setError(userMessage(err, "ノートを読み込めませんでした。もう一度お試しください。"));
       }
     })();
-    return () => controller.abort();
+    return () => {
+      ignore = true;
+    };
   }, [graphId]);
 
   useEffect(() => {
@@ -390,14 +404,19 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
             setFocusNodeId(null);
           }
         }
-        for (const edgeId of edgeIds) {
-          if (removedEdgeIds.has(edgeId)) continue;
-          try {
-            await api.deleteEdge(graphId, edgeId);
-            removedEdgeIds.add(edgeId);
-          } catch (err) {
-            if (!(err instanceof ApiError && err.status === 404)) throw err;
-          }
+        const remainingEdgeIds = edgeIds.filter((edgeId) => !removedEdgeIds.has(edgeId));
+        const deletedEdgeIds = await Promise.all(
+          remainingEdgeIds.map(async (edgeId) => {
+            try {
+              await api.deleteEdge(graphId, edgeId);
+            } catch (err) {
+              if (!(err instanceof ApiError && err.status === 404)) throw err;
+            }
+            return edgeId;
+          }),
+        );
+        for (const edgeId of deletedEdgeIds) {
+          removedEdgeIds.add(edgeId);
         }
         if (removedEdgeIds.size > 0) {
           setEdgeRecords((prev) => prev.filter((edge) => !removedEdgeIds.has(edge.id)));
@@ -465,20 +484,23 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     async (dx: number, dy: number) => {
       const ids = selectedNodeIdsRef.current;
       if (ids.length === 0) return;
-      const updates = nodeRecordsRef.current
-        .filter((node) => ids.includes(node.id))
-        .map((node) => ({ ...node, x: node.x + dx, y: node.y + dy }));
-      setNodeRecords((prev) =>
-        prev.map((node) => updates.find((item) => item.id === node.id) ?? node),
-      );
+      const selectedIds = new Set(ids);
+      const updates = new Map<string, NodeRecord>();
+      for (const node of nodeRecordsRef.current) {
+        if (!selectedIds.has(node.id)) continue;
+        updates.set(node.id, { ...node, x: node.x + dx, y: node.y + dy });
+      }
+      setNodeRecords((prev) => prev.map((node) => updates.get(node.id) ?? node));
       setNodes((prev) =>
         prev.map((node) => {
-          const next = updates.find((item) => item.id === node.id);
+          const next = updates.get(node.id);
           return next ? { ...node, position: { x: next.x, y: next.y } } : node;
         }),
       );
       await Promise.all(
-        updates.map((node) => api.updateNode(graphId, node.id, { x: node.x, y: node.y })),
+        [...updates.values()].map((node) =>
+          api.updateNode(graphId, node.id, { x: node.x, y: node.y }),
+        ),
       );
     },
     [graphId],

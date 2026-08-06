@@ -62,20 +62,22 @@ export async function getGraphDetail(
 ): Promise<GraphDetail | null> {
   const graph = await ownedGraph(db, userId, graphId);
   if (!graph) return null;
-  const nodes = await db
-    .prepare(
-      `SELECT id, graph_id, title, body, x, y, width, height, created_at, updated_at
-       FROM nodes WHERE graph_id = ?`,
-    )
-    .bind(graphId)
-    .all<NodeRecord>();
-  const edges = await db
-    .prepare(
-      `SELECT id, graph_id, source_id, target_id, label, created_at
-       FROM edges WHERE graph_id = ?`,
-    )
-    .bind(graphId)
-    .all<EdgeRecord>();
+  const [nodes, edges] = await Promise.all([
+    db
+      .prepare(
+        `SELECT id, graph_id, title, body, x, y, width, height, created_at, updated_at
+         FROM nodes WHERE graph_id = ?`,
+      )
+      .bind(graphId)
+      .all<NodeRecord>(),
+    db
+      .prepare(
+        `SELECT id, graph_id, source_id, target_id, label, created_at
+         FROM edges WHERE graph_id = ?`,
+      )
+      .bind(graphId)
+      .all<EdgeRecord>(),
+  ]);
   return {
     graph,
     nodes: nodes.results ?? [],
@@ -338,9 +340,13 @@ export async function deleteNodes(
     edgeIds = result.edgeIds;
   } else {
     const edges = await listEdges(db, graphId);
-    edgeIds = edges
-      .filter((edge) => targets.includes(edge.source_id) || targets.includes(edge.target_id))
-      .map((edge) => edge.id);
+    const targetIds = new Set(targets);
+    edgeIds = [];
+    for (const edge of edges) {
+      if (targetIds.has(edge.source_id) || targetIds.has(edge.target_id)) {
+        edgeIds.push(edge.id);
+      }
+    }
   }
   const statements = [
     ...edgeIds.map((id) =>
@@ -365,14 +371,16 @@ export async function createEdge(
 ): Promise<EdgeRecord | null> {
   if (!(await ownedGraph(db, userId, graphId))) return null;
   if (input.source_id === input.target_id) return null;
-  const source = await db
-    .prepare(`SELECT id FROM nodes WHERE id = ? AND graph_id = ?`)
-    .bind(input.source_id, graphId)
-    .first();
-  const target = await db
-    .prepare(`SELECT id FROM nodes WHERE id = ? AND graph_id = ?`)
-    .bind(input.target_id, graphId)
-    .first();
+  const [source, target] = await Promise.all([
+    db
+      .prepare(`SELECT id FROM nodes WHERE id = ? AND graph_id = ?`)
+      .bind(input.source_id, graphId)
+      .first(),
+    db
+      .prepare(`SELECT id FROM nodes WHERE id = ? AND graph_id = ?`)
+      .bind(input.target_id, graphId)
+      .first(),
+  ]);
   if (!source || !target) return null;
   const id = crypto.randomUUID();
   const ts = nowIso();
@@ -436,53 +444,56 @@ export async function importGraph(
   const graphId = crypto.randomUUID();
   const ts = nowIso();
   const idMap = new Map<string, string>();
-
-  await db
-    .prepare(
-      `INSERT INTO graphs (id, owner_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-    )
-    .bind(graphId, userId, title, ts, ts)
-    .run();
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `INSERT INTO graphs (id, owner_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+      )
+      .bind(graphId, userId, title, ts, ts),
+  ];
 
   for (const node of payload.nodes) {
     const newId = crypto.randomUUID();
     idMap.set(node.id, newId);
-    await db
-      .prepare(
-        `INSERT INTO nodes (id, graph_id, title, body, x, y, width, height, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        newId,
-        graphId,
-        String(node.title ?? "").slice(0, QUOTA.maxTitleChars),
-        String(node.body ?? "").slice(0, QUOTA.maxBodyChars),
-        Number(node.x) || 0,
-        Number(node.y) || 0,
-        isValidNoteWidth(node.width) ? node.width : null,
-        isValidNoteHeight(node.height) ? node.height : null,
-        ts,
-        ts,
-      )
-      .run();
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO nodes (id, graph_id, title, body, x, y, width, height, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          newId,
+          graphId,
+          String(node.title ?? "").slice(0, QUOTA.maxTitleChars),
+          String(node.body ?? "").slice(0, QUOTA.maxBodyChars),
+          Number(node.x) || 0,
+          Number(node.y) || 0,
+          isValidNoteWidth(node.width) ? node.width : null,
+          isValidNoteHeight(node.height) ? node.height : null,
+          ts,
+          ts,
+        ),
+    );
   }
 
+  const edgeKeys = new Set<string>();
   for (const edge of payload.edges) {
     const source = idMap.get(edge.source_id);
     const target = idMap.get(edge.target_id);
     if (!source || !target || source === target) continue;
-    try {
-      await db
+    const edgeKey = `${source}\0${target}`;
+    if (edgeKeys.has(edgeKey)) continue;
+    edgeKeys.add(edgeKey);
+    statements.push(
+      db
         .prepare(
           `INSERT INTO edges (id, graph_id, source_id, target_id, label, created_at)
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .bind(crypto.randomUUID(), graphId, source, target, String(edge.label ?? ""), ts)
-        .run();
-    } catch {
-      /* skip duplicate / invalid */
-    }
+        .bind(crypto.randomUUID(), graphId, source, target, String(edge.label ?? ""), ts),
+    );
   }
+  await db.batch(statements);
 
   const detail = await getGraphDetail(db, userId, graphId);
   if (!detail) return { error: "import failed" };

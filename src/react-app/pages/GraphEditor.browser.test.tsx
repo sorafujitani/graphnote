@@ -29,6 +29,8 @@ describe("customer-facing editor copy", () => {
     expect(document.body).not.toHaveTextContent("基本操作");
     expect(document.body).not.toHaveTextContent("キーボード操作");
     expect(document.body).not.toHaveTextContent("下位を選択");
+    expect(screen.getByRole("textbox", { name: "ノート名" })).toBeInTheDocument();
+    expect(screen.getByRole("application", { name: "ノート編集キャンバス" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "ダウンロード" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "ログアウト" })).not.toBeInTheDocument();
 

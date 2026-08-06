@@ -60,6 +60,7 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
             ノート一覧
           </button>
           <input
+            aria-label="ノート名"
             value={state.titleDraft}
             onChange={(event) => actions.setTitleDraft(event.target.value)}
             onBlur={() => void actions.onRenameGraph()}
@@ -157,6 +158,8 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
         <div className="relative min-w-0 flex-1">
           <div
             ref={refs.canvasRef}
+            role="application"
+            aria-label="ノート編集キャンバス"
             tabIndex={0}
             className="h-full min-h-0 outline-none"
             onMouseDown={() => refs.canvasRef.current?.focus()}
