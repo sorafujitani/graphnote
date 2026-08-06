@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser/context";
 import {
@@ -18,12 +18,14 @@ import {
 const twoNotes = () => [note("n1", 0, 0, "Alpha"), note("n2", 520, 40, "Beta")];
 
 describe("customer-facing editor copy", () => {
-  it("keeps the canvas full width and secondary actions in the menu", async () => {
+  it("keeps secondary actions in the menu and removes shortcut copy", async () => {
     await mountEditor(twoNotes(), [link("e1", "n1", "n2")]);
 
     expect(document.body).toHaveTextContent("ノート一覧");
     expect(document.body).not.toHaveTextContent("ボード");
-    expect(document.querySelector("aside")).not.toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "ノードの詳細" })).toHaveTextContent(
+      "ノードを選択すると内容が表示されます",
+    );
     expect(document.body).not.toHaveTextContent("基本操作");
     expect(document.body).not.toHaveTextContent("キーボード操作");
     expect(document.body).not.toHaveTextContent("下位を選択");
@@ -46,6 +48,39 @@ describe("customer-facing editor copy", () => {
 
     expect(cardElement("n1")).toHaveTextContent("タイトルなし");
     expect(cardElement("n1")).toHaveTextContent("メモを書く…");
+  });
+
+  it("shows selected Markdown, resizes, closes, and reopens the detail pane", async () => {
+    const body = "# 概要\n\n長い説明をここで読みます。\n\n- 最初の項目\n- 次の項目";
+    await mountEditor([note("n1", 0, 0, "Alpha", body), note("n2", 520, 40, "Beta")]);
+
+    await userEvent.click(cardElement("n1"));
+
+    const inspector = screen.getByRole("complementary", { name: "ノードの詳細" });
+    expect(within(inspector).getByRole("heading", { name: "Alpha" })).toBeInTheDocument();
+    expect(within(inspector).getByRole("heading", { name: "概要" })).toBeInTheDocument();
+    expect(inspector).toHaveTextContent("長い説明をここで読みます。");
+
+    const content = inspector.querySelector<HTMLElement>("[data-node-inspector-content]");
+    expect(content).not.toBeNull();
+    expect(getComputedStyle(content!).overflowY).toBe("auto");
+
+    const separator = screen.getByRole("separator", { name: "詳細の幅を変更" });
+    const separatorBox = separator.getBoundingClientRect();
+    const widthBefore = inspector.getBoundingClientRect().width;
+    await dragMouse(
+      { x: separatorBox.x + separatorBox.width / 2, y: separatorBox.y + 100 },
+      { x: separatorBox.x - 120, y: separatorBox.y + 100 },
+    );
+    await waitFor(() => {
+      expect(inspector.getBoundingClientRect().width).toBeGreaterThan(widthBefore + 80);
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "詳細を閉じる" }));
+    expect(screen.queryByRole("complementary", { name: "ノードの詳細" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "詳細を開く" }));
+    expect(screen.getByRole("complementary", { name: "ノードの詳細" })).toHaveTextContent("Alpha");
   });
 });
 

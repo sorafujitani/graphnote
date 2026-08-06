@@ -11,6 +11,7 @@ import { Note } from "../../components/Note";
 import { NoteActionsProvider } from "../../components/NoteActions";
 import { EDGE_MARKER } from "../../logic/graphEditorFlow";
 import type { GraphEditorController } from "../../logic/useGraphEditor";
+import { NodeInspector } from "./NodeInspector";
 
 type Props = {
   controller: GraphEditorController;
@@ -48,6 +49,7 @@ function NodeInternalsBridge({
 
 export function GraphEditorView({ controller, onBack, onLogout }: Props) {
   const { state, refs, actions, noteActions } = controller;
+  const selectedNode = state.nodes.find((node) => node.selected);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -186,72 +188,75 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
         </div>
       </header>
 
-      <div className="relative h-full min-h-0">
-        <div
-          ref={refs.canvasRef}
-          tabIndex={0}
-          className="h-full min-h-0 outline-none"
-          onMouseDown={() => refs.canvasRef.current?.focus()}
-          onDoubleClick={(event) => {
-            if (!(event.target as HTMLElement).classList.contains("react-flow__pane")) return;
-            void actions.onAddNode({
-              focus: true,
-              at: refs.flowRef.current?.screenToFlowPosition({
-                x: event.clientX,
-                y: event.clientY,
-              }),
-            });
-          }}
-        >
-          <NoteActionsProvider value={noteActions}>
-            <ReactFlow
-              nodes={state.nodes}
-              edges={state.edges}
-              nodeTypes={nodeTypes}
-              onNodesChange={actions.onNodesChange}
-              onEdgesChange={actions.onEdgesChange}
-              onConnect={(connection) => void actions.onConnect(connection)}
-              isValidConnection={actions.isValidConnection}
-              connectionMode={ConnectionMode.Loose}
-              connectionRadius={45}
-              nodeDragThreshold={4}
-              nodeClickDistance={4}
-              onNodeDragStop={(event, node) => void actions.onNodeDragStop(event, node)}
-              onNodeMouseEnter={(_, node) => actions.onNodeMouseEnter(node.id)}
-              onNodeMouseLeave={(_, node) => actions.onNodeMouseLeave(node.id)}
-              onNodeClick={(_, node) => actions.focusParent(node.id)}
-              onSelectionChange={actions.onSelectionChange}
-              onInit={actions.onFlowInit}
-              defaultEdgeOptions={{ type: "default", markerEnd: EDGE_MARKER }}
-              fitView
-              fitViewOptions={{ padding: 0.25 }}
-              onlyRenderVisibleElements={false}
-              zoomOnDoubleClick={false}
-              deleteKeyCode={null}
-              multiSelectionKeyCode="Shift"
-              ariaLabelConfig={ariaLabelConfig}
-            >
-              <NodeInternalsBridge apiRef={refs.updateInternalsRef} />
-              <Background gap={18} color="#2a3442" />
-              <MiniMap
-                pannable
-                zoomable
-                maskColor="rgba(8, 11, 16, 0.7)"
-                nodeColor="#334155"
-                nodeStrokeColor="#64748b"
-              />
-              <Controls />
-            </ReactFlow>
-          </NoteActionsProvider>
-        </div>
-        {state.error ? (
-          <p
-            role="status"
-            className="panel pointer-events-none absolute top-4 left-1/2 z-10 m-0 max-w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 px-4 py-3 text-sm text-danger shadow-lg"
+      <div className="relative flex h-full min-h-0">
+        <div className="relative min-w-0 flex-1">
+          <div
+            ref={refs.canvasRef}
+            tabIndex={0}
+            className="h-full min-h-0 outline-none"
+            onMouseDown={() => refs.canvasRef.current?.focus()}
+            onDoubleClick={(event) => {
+              if (!(event.target as HTMLElement).classList.contains("react-flow__pane")) return;
+              void actions.onAddNode({
+                focus: true,
+                at: refs.flowRef.current?.screenToFlowPosition({
+                  x: event.clientX,
+                  y: event.clientY,
+                }),
+              });
+            }}
           >
-            {state.error}
-          </p>
-        ) : null}
+            <NoteActionsProvider value={noteActions}>
+              <ReactFlow
+                nodes={state.nodes}
+                edges={state.edges}
+                nodeTypes={nodeTypes}
+                onNodesChange={actions.onNodesChange}
+                onEdgesChange={actions.onEdgesChange}
+                onConnect={(connection) => void actions.onConnect(connection)}
+                isValidConnection={actions.isValidConnection}
+                connectionMode={ConnectionMode.Loose}
+                connectionRadius={45}
+                nodeDragThreshold={4}
+                nodeClickDistance={4}
+                onNodeDragStop={(event, node) => void actions.onNodeDragStop(event, node)}
+                onNodeMouseEnter={(_, node) => actions.onNodeMouseEnter(node.id)}
+                onNodeMouseLeave={(_, node) => actions.onNodeMouseLeave(node.id)}
+                onNodeClick={(_, node) => actions.focusParent(node.id)}
+                onSelectionChange={actions.onSelectionChange}
+                onInit={actions.onFlowInit}
+                defaultEdgeOptions={{ type: "default", markerEnd: EDGE_MARKER }}
+                fitView
+                fitViewOptions={{ padding: 0.25 }}
+                onlyRenderVisibleElements={false}
+                zoomOnDoubleClick={false}
+                deleteKeyCode={null}
+                multiSelectionKeyCode="Shift"
+                ariaLabelConfig={ariaLabelConfig}
+              >
+                <NodeInternalsBridge apiRef={refs.updateInternalsRef} />
+                <Background gap={18} color="#2a3442" />
+                <MiniMap
+                  pannable
+                  zoomable
+                  maskColor="rgba(8, 11, 16, 0.7)"
+                  nodeColor="#334155"
+                  nodeStrokeColor="#64748b"
+                />
+                <Controls />
+              </ReactFlow>
+            </NoteActionsProvider>
+          </div>
+          {state.error ? (
+            <p
+              role="status"
+              className="panel pointer-events-none absolute top-4 left-1/2 z-10 m-0 max-w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 px-4 py-3 text-sm text-danger shadow-lg"
+            >
+              {state.error}
+            </p>
+          ) : null}
+        </div>
+        <NodeInspector node={selectedNode} />
       </div>
     </div>
   );

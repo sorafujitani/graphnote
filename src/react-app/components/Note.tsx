@@ -4,12 +4,9 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type ComponentPropsWithoutRef,
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
-import Markdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   NOTE_MAX_HEIGHT,
   NOTE_MAX_WIDTH,
@@ -18,6 +15,7 @@ import {
 } from "../../shared/noteSize";
 import { useSyncedDraft } from "../lib/useSyncedDraft";
 import type { AppNode } from "../logic/graphEditorTypes";
+import { MarkdownContent } from "./MarkdownContent";
 import { useNoteActions } from "./NoteActions";
 
 /** Card-sized target handle so drops don't have to land on the port dot. */
@@ -26,24 +24,6 @@ const DROP_HANDLE_ID = "note-drop";
 function stopMouse(event: MouseEvent) {
   event.stopPropagation();
 }
-
-function MarkdownLink({ href, children }: ComponentPropsWithoutRef<"a">) {
-  // Following a link should not also select the note.
-  return (
-    <a href={href} target="_blank" rel="noreferrer" onClick={stopMouse}>
-      {children}
-    </a>
-  );
-}
-
-function MarkdownInput(props: ComponentPropsWithoutRef<"input">) {
-  return <input {...props} disabled />;
-}
-
-const markdownComponents: Components = {
-  a: MarkdownLink,
-  input: MarkdownInput,
-};
 
 export function Note({ id, data, selected }: NodeProps<AppNode>) {
   const { onChange, onRequestChild, onResize } = useNoteActions();
@@ -232,11 +212,7 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
             onDoubleClick={() => setEditingBody(true)}
           >
             {body.trim() ? (
-              <div className="note-md">
-                <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                  {body}
-                </Markdown>
-              </div>
+              <MarkdownContent className="note-md">{body}</MarkdownContent>
             ) : (
               <span className="note-placeholder">メモを書く…</span>
             )}

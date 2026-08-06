@@ -464,3 +464,49 @@
 .note-md input[type="checkbox"] {
   margin-right: 0.35em;
 }
+
+.node-inspector-md {
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.node-inspector-md p,
+.node-inspector-md ul,
+.node-inspector-md ol,
+.node-inspector-md pre,
+.node-inspector-md blockquote {
+  margin: 0.75em 0;
+}
+
+.node-inspector-md h1,
+.node-inspector-md h2,
+.node-inspector-md h3,
+.node-inspector-md h4 {
+  margin: 1.1em 0 0.45em;
+  line-height: 1.35;
+}
+
+.node-inspector-md h1 {
+  font-size: 1.35rem;
+}
+
+.node-inspector-md h2 {
+  font-size: 1.15rem;
+}
+
+.node-inspector-md h3,
+.node-inspector-md h4 {
+  font-size: 1rem;
+}
+
+.node-inspector-md pre {
+  overflow-x: auto;
+  padding: 0.8em 0.9em;
+  white-space: pre;
+}
+
+.node-inspector-md pre code {
+  overflow-wrap: normal;
+  word-break: normal;
+  white-space: pre;
+}
