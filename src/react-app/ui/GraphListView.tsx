@@ -1,3 +1,4 @@
+import { AppMenu } from "../components/AppMenu";
 import type { GraphListController } from "../logic/useGraphList";
 
 const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", {
@@ -24,7 +25,7 @@ export function GraphListView({
 
   return (
     <div className="h-full min-h-screen p-6">
-      <header className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+      <header className="relative z-20 mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="font-brand m-0 font-semibold text-muted">graphnote</p>
           <h1 className="mt-[0.2rem] text-[2rem] leading-tight font-bold">あなたのノート</h1>
@@ -32,14 +33,43 @@ export function GraphListView({
             考えたいテーマごとに、ノードをまとめられます。
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="btn btn-secondary" type="button" onClick={onOpenTokens}>
-            CLI連携
-          </button>
-          <button className="btn btn-secondary" type="button" onClick={onLogout}>
-            ログアウト
-          </button>
-        </div>
+        <AppMenu>
+          {(close) => (
+            <>
+              <button
+                className="btn btn-ghost flex w-full justify-start"
+                type="button"
+                onClick={() => {
+                  close();
+                  onOpenTokens();
+                }}
+              >
+                CLI連携
+              </button>
+              <button
+                className="btn btn-ghost flex w-full justify-start"
+                type="button"
+                onClick={() => {
+                  close();
+                  onLogout();
+                }}
+              >
+                ログアウト
+              </button>
+              <div className="mx-2 border-t border-line" />
+              <button
+                className="btn btn-ghost flex w-full justify-start text-danger"
+                type="button"
+                onClick={() => {
+                  close();
+                  onDeleteAccount();
+                }}
+              >
+                アカウントを削除
+              </button>
+            </>
+          )}
+        </AppMenu>
       </header>
 
       <form
@@ -102,12 +132,6 @@ export function GraphListView({
           </div>
         ) : null}
       </div>
-
-      <footer className="mt-10 border-t border-line pt-4 text-sm text-muted">
-        <button className="btn btn-ghost px-0 text-danger" type="button" onClick={onDeleteAccount}>
-          アカウントを削除
-        </button>
-      </footer>
     </div>
   );
 }

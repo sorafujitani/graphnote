@@ -1,5 +1,6 @@
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser/context";
 import { GraphList } from "./GraphList";
 import { LoginView } from "../ui/LoginView";
 import { stubFetch, type FetchStub } from "../test/api-stub";
@@ -31,7 +32,8 @@ describe("customer-facing product copy", () => {
     expect(document.body).not.toHaveTextContent("考えを、カードでつなげよう。");
   });
 
-  it("uses boards and nodes consistently", async () => {
+  it("uses notes consistently and keeps account deletion inside the menu", async () => {
+    let deleteRequested = false;
     stub = stubFetch(({ method, path }) => {
       if (method === "GET" && path === "/api/graphs") return { graphs: [] };
       return undefined;
@@ -41,7 +43,9 @@ describe("customer-facing product copy", () => {
         onOpen={() => {}}
         onLogout={() => {}}
         onOpenTokens={() => {}}
-        onDeleteAccount={() => {}}
+        onDeleteAccount={() => {
+          deleteRequested = true;
+        }}
       />,
     );
 
@@ -49,7 +53,17 @@ describe("customer-facing product copy", () => {
     expect(document.body).toHaveTextContent("新しいノート");
     expect(document.body).not.toHaveTextContent("ボード");
     expect(document.body).toHaveTextContent("ノードをまとめられます");
-    expect(document.body).toHaveTextContent("CLI連携");
-    expect(document.body).toHaveTextContent("アカウントを削除");
+    expect(screen.queryByRole("button", { name: "CLI連携" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "ログアウト" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "アカウントを削除" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "メニュー" }));
+
+    expect(screen.getByRole("button", { name: "CLI連携" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "アカウントを削除" }));
+
+    expect(deleteRequested).toBe(true);
+    expect(screen.queryByRole("button", { name: "アカウントを削除" })).not.toBeInTheDocument();
   });
 });

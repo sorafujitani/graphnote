@@ -6,7 +6,8 @@ import {
   ReactFlow,
   useUpdateNodeInternals,
 } from "@xyflow/react";
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, type MutableRefObject } from "react";
+import { AppMenu } from "../../components/AppMenu";
 import { Note } from "../../components/Note";
 import { NoteActionsProvider } from "../../components/NoteActions";
 import { EDGE_MARKER } from "../../logic/graphEditorFlow";
@@ -50,27 +51,6 @@ function NodeInternalsBridge({
 export function GraphEditorView({ controller, onBack, onLogout }: Props) {
   const { state, refs, actions, noteActions } = controller;
   const selectedNode = state.nodes.find((node) => node.selected);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
-    };
-    const closeWithEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setMenuOpen(false);
-      menuButtonRef.current?.focus();
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeWithEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeWithEscape);
-    };
-  }, [menuOpen]);
 
   return (
     <div className="grid h-screen min-h-screen grid-rows-[auto_1fr] overflow-hidden">
@@ -143,30 +123,15 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
           </button>
         </div>
 
-        <div ref={menuRef} className="relative shrink-0">
-          <button
-            ref={menuButtonRef}
-            className="btn btn-secondary grid size-10 place-items-center px-0 py-0"
-            type="button"
-            aria-label="メニュー"
-            aria-haspopup="true"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true" className="size-5 fill-current">
-              <circle cx="4" cy="10" r="1.5" />
-              <circle cx="10" cy="10" r="1.5" />
-              <circle cx="16" cy="10" r="1.5" />
-            </svg>
-          </button>
-          {menuOpen ? (
-            <div className="panel absolute top-full right-0 mt-2 grid min-w-48 gap-1 p-2">
+        <AppMenu>
+          {(close) => (
+            <>
               <button
                 className="btn btn-ghost flex w-full justify-start"
                 type="button"
                 disabled={state.busy}
                 onClick={() => {
-                  setMenuOpen(false);
+                  close();
                   void actions.onExport();
                 }}
               >
@@ -177,15 +142,15 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
                 className="btn btn-ghost flex w-full justify-start text-danger"
                 type="button"
                 onClick={() => {
-                  setMenuOpen(false);
+                  close();
                   onLogout();
                 }}
               >
                 ログアウト
               </button>
-            </div>
-          ) : null}
-        </div>
+            </>
+          )}
+        </AppMenu>
       </header>
 
       <div className="relative flex h-full min-h-0">
