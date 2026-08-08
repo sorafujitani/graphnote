@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { userMessage } from "./userMessage";
+import { oauthErrorMessage, userMessage } from "./userMessage";
 
 describe("userMessage", () => {
   it("translates known API errors into actionable Japanese", () => {
@@ -15,5 +15,28 @@ describe("userMessage", () => {
     expect(userMessage(new Error("SQLITE_CONSTRAINT"), "保存できませんでした")).toBe(
       "保存できませんでした",
     );
+  });
+});
+
+describe("oauthErrorMessage", () => {
+  it("explains a lost sign-in and how to recover", () => {
+    expect(oauthErrorMessage("?error=state_mismatch")).toBe(
+      "ログインの途中で情報が失われました。このページでもう一度ログインしてください。",
+    );
+  });
+
+  it("stays generic for unknown or inherited codes and silent for a clean URL", () => {
+    expect(oauthErrorMessage("?error=unable_to_create_user")).toBe(
+      "ログインできませんでした。もう一度お試しください。",
+    );
+    // `?error=` is URL-controlled: an inherited key must not become the message.
+    expect(oauthErrorMessage("?error=__proto__")).toBe(
+      "ログインできませんでした。もう一度お試しください。",
+    );
+    expect(oauthErrorMessage("?error=constructor")).toBe(
+      "ログインできませんでした。もう一度お試しください。",
+    );
+    expect(oauthErrorMessage("")).toBeNull();
+    expect(oauthErrorMessage("?graph=1")).toBeNull();
   });
 });
