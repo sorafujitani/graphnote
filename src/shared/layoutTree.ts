@@ -1,6 +1,12 @@
 import { LAYOUT_DX, LAYOUT_GAP } from "./placeChild.js";
 
-export type LayoutGraphNode = { id: string; width?: number | null; height?: number };
+export type LayoutGraphNode = {
+  id: string;
+  width?: number | null;
+  height?: number;
+  /** Current vertical placement; decides sibling order so a moved card keeps its slot. */
+  y?: number | null;
+};
 export type LayoutGraphEdge = { source_id: string; target_id: string };
 
 export type TreeLayoutOptions = {
@@ -52,10 +58,22 @@ export function layoutTree(
   const positions = new Map<string, { x: number; y: number }>();
   const roots = [...ids].filter((id) => (incoming.get(id) ?? 0) === 0);
 
-  // Stable order: original node list order among roots / siblings.
+  // Where the user last left a card decides its slot; creation order only breaks ties.
   const order = new Map(nodes.map((node, index) => [node.id, index]));
+  const centers = new Map(
+    nodes
+      .filter((node) => typeof node.y === "number")
+      .map((node) => [node.id, (node.y as number) + (heights.get(node.id) ?? dy) / 2]),
+  );
   const sortIds = (list: string[]) =>
-    list.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+    list.sort((a, b) => {
+      const centerA = centers.get(a);
+      const centerB = centers.get(b);
+      if (centerA !== undefined && centerB !== undefined && centerA !== centerB) {
+        return centerA - centerB;
+      }
+      return (order.get(a) ?? 0) - (order.get(b) ?? 0);
+    });
 
   for (const id of ids) {
     const childIds = children.get(id);

@@ -19,7 +19,9 @@ import {
   useState,
 } from "react";
 import type { EdgeRecord, Graph, NodeRecord } from "../../shared/types";
+import { estimateNoteHeight } from "../../shared/estimateNoteHeight";
 import { placeChildPosition } from "../../shared/placeChild";
+import { reflowAroundNode } from "../../shared/reflowTree";
 import { isEditableTarget, nearestNodeId } from "../lib/keyboard";
 import { userMessage } from "../lib/userMessage";
 import { ApiError, api } from "../server/api";
@@ -714,29 +716,49 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         width: Math.round(size.width),
         height: Math.round(size.height),
       };
+      // A hand-resized card must not bury its neighbours; slide them clear instead.
+      const moved = reflowAroundNode(
+        nodeRecordsRef.current.map((node) => {
+          const record = node.id === nodeId ? { ...node, ...patch } : node;
+          return {
+            id: record.id,
+            y: record.y,
+            height: record.height ?? estimateNoteHeight(record.title, record.body),
+          };
+        }),
+        edgeRecordsRef.current,
+        nodeId,
+      );
       setNodeRecords((previous) =>
-        previous.map((node) => (node.id === nodeId ? { ...node, ...patch } : node)),
+        previous.map((node) => {
+          if (node.id === nodeId) return { ...node, ...patch };
+          const y = moved.get(node.id);
+          return y === undefined ? node : { ...node, y };
+        }),
       );
       setNodes((previous) =>
-        previous.map((node) =>
-          node.id === nodeId
-            ? {
-                ...node,
-                position: { x: patch.x, y: patch.y },
-                width: patch.width,
-                height: patch.height,
-                style: { ...node.style, width: patch.width, height: patch.height },
-              }
-            : node,
-        ),
+        previous.map((node) => {
+          if (node.id === nodeId) {
+            return {
+              ...node,
+              position: { x: patch.x, y: patch.y },
+              width: patch.width,
+              height: patch.height,
+              style: { ...node.style, width: patch.width, height: patch.height },
+            };
+          }
+          const y = moved.get(node.id);
+          return y === undefined ? node : { ...node, position: { x: node.position.x, y } };
+        }),
       );
-      void api
-        .updateNode(graphId, nodeId, patch)
-        .then(({ node }) => {
-          setNodeRecords((previous) =>
-            previous.map((current) => (current.id === node.id ? node : current)),
-          );
-          updateInternalsRef.current?.([nodeId]);
+      void Promise.all([
+        api.updateNode(graphId, nodeId, patch),
+        ...[...moved].map(([id, y]) => api.updateNode(graphId, id, { y })),
+      ])
+        .then((results) => {
+          const saved = new Map(results.map(({ node }) => [node.id, node]));
+          setNodeRecords((previous) => previous.map((node) => saved.get(node.id) ?? node));
+          updateInternalsRef.current?.([...saved.keys()]);
         })
         .catch((err) => {
           setError(

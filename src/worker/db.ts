@@ -219,6 +219,7 @@ export async function formatGraphLayout(
     detail.nodes.map((node) => ({
       id: node.id,
       width: node.width,
+      y: node.y,
       height: node.height ?? estimateNoteHeight(node.title, node.body),
     })),
     detail.edges,

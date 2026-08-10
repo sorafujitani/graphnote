@@ -309,6 +309,38 @@ describe("resizing a note", () => {
     });
   });
 
+  it("pushes the sibling below out of the way when a card grows", async () => {
+    const api = await mountEditor(
+      [note("n1", 0, 0, "Parent"), note("n2", 340, 0, "Grows"), note("n3", 340, 140, "Below")],
+      [link("e1", "n1", "n2"), link("e2", "n1", "n3")],
+    );
+    await userEvent.click(cardElement("n2"));
+    const node = cardElement("n2").closest<HTMLElement>(".react-flow__node");
+    await waitFor(() => expect(node).toHaveClass("selected"));
+    const handle = node?.querySelector<HTMLElement>(
+      ".react-flow__resize-control.handle.bottom.right",
+    );
+    if (!handle) throw new Error("selected note has no bottom-right resize handle");
+    const beforeBelow = cardBox("n3");
+    const box = handle.getBoundingClientRect();
+    const dropTarget = document.createElement("div");
+    Object.assign(dropTarget.style, {
+      position: "fixed",
+      left: `${box.x + box.width / 2}px`,
+      top: `${box.y + box.height / 2 + 120}px`,
+      width: "2px",
+      height: "2px",
+    });
+    document.body.append(dropTarget);
+
+    await userEvent.dragAndDrop(handle, dropTarget);
+    dropTarget.remove();
+
+    await waitFor(() => expect(api.matching("PATCH", "/nodes/n3")).toHaveLength(1));
+    expect(api.matching("PATCH", "/nodes/n3").at(-1)?.body?.y).toBeGreaterThan(140);
+    await waitFor(() => expect(cardBox("n3").y - beforeBelow.y).toBeGreaterThan(30));
+  });
+
   it("restores a saved size", async () => {
     await mountEditor([note("n1", 0, 0, "Saved size", "", { width: 420, height: 220 })]);
 

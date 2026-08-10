@@ -59,4 +59,24 @@ describe("layoutTree", () => {
 
     expect(pos.get("c")!.x - pos.get("p")!.x).toBe(580);
   });
+
+  it("keeps a moved card in the slot it was dragged to", () => {
+    // Creation order is a, b, c; the user dragged c between a and b.
+    const nodes = [
+      { id: "p", y: 0, height: 100 },
+      { id: "a", y: 0, height: 100 },
+      { id: "b", y: 400, height: 100 },
+      { id: "c", y: 200, height: 100 },
+    ];
+    const edges = [
+      { source_id: "p", target_id: "a" },
+      { source_id: "p", target_id: "b" },
+      { source_id: "p", target_id: "c" },
+    ];
+
+    const pos = layoutTree(nodes, edges, { x0: 0, y0: 0, gap: 20 });
+
+    expect(pos.get("c")!.y).toBeGreaterThan(pos.get("a")!.y);
+    expect(pos.get("c")!.y).toBeLessThan(pos.get("b")!.y);
+  });
 });
