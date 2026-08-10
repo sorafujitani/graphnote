@@ -1,7 +1,20 @@
 import type { LayoutGraphEdge } from "./layoutTree.js";
 import { LAYOUT_GAP } from "./placeChild.js";
 
-export type ReflowNode = { id: string; y: number; height: number };
+export type ReflowNode = {
+  id: string;
+  y: number;
+  height: number;
+  x?: number;
+  width?: number | null;
+};
+
+type Span = { left: number; right: number };
+
+function spansOverlap(a: Span | null, b: Span | null): boolean {
+  if (!a || !b) return true;
+  return a.left < b.right && b.left < a.right;
+}
 
 /**
  * Slide neighbours out of the way of one card that just changed size or place.
@@ -10,12 +23,16 @@ export type ReflowNode = { id: string; y: number; height: number };
  * moves the minimum distance needed to clear it, cascading up the ancestors so
  * a grown card pushes the whole branch instead of burying the next one.
  * Returns the new `y` of the nodes that actually moved.
+ *
+ * `anchorBefore` is the anchor's geometry before the gesture; sibling order is
+ * decided from it so growing a card cannot swap its slot with a neighbour.
  */
 export function reflowAroundNode(
   nodes: ReflowNode[],
   edges: LayoutGraphEdge[],
   anchorId: string,
   gap: number = LAYOUT_GAP,
+  anchorBefore?: { y: number; height: number },
 ): Map<string, number> {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   if (!byId.has(anchorId)) return new Map();
@@ -63,15 +80,76 @@ export function reflowAroundNode(
     for (const kid of subtree(id)) shifts.set(kid, (shifts.get(kid) ?? 0) + delta);
   };
 
+  // Sort key from pre-gesture geometry: a card stretched past its neighbour's
+  // center must still be treated as sitting above it, or the neighbour gets
+  // pushed the wrong way.
+  const orderGeom = (id: string): { y: number; height: number } => {
+    if (id === anchorId && anchorBefore) return anchorBefore;
+    return byId.get(id) as ReflowNode;
+  };
+  const orderCenter = (id: string): number => {
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const kid of subtree(id)) {
+      const geom = orderGeom(kid);
+      min = Math.min(min, geom.y);
+      max = Math.max(max, geom.y + geom.height);
+    }
+    return min + max;
+  };
+
+  // Horizontal span of a subtree; used to leave unrelated columns alone.
+  const spanOf = (id: string): { left: number; right: number } | null => {
+    let left = Number.POSITIVE_INFINITY;
+    let right = Number.NEGATIVE_INFINITY;
+    for (const kid of subtree(id)) {
+      const node = byId.get(kid) as ReflowNode;
+      if (node.x === undefined) return null;
+      left = Math.min(left, node.x);
+      right = Math.max(right, node.x + (node.width ?? 280));
+    }
+    return { left, right };
+  };
+  /**
+   * Roots reachable from `branchId` through chains of horizontal overlap.
+   * Pairwise overlap with the branch alone is not enough: pushing B down can
+   * land it on C when B overlaps C but the branch does not.
+   */
+  const rootsTouching = (branchId: string): Set<string> => {
+    const spans = new Map(roots.map((id) => [id, spanOf(id)] as const));
+    const reached = new Set<string>([branchId]);
+    const queue = [branchId];
+    while (queue.length > 0) {
+      const current = queue.pop() as string;
+      for (const other of roots) {
+        if (reached.has(other)) continue;
+        if (spansOverlap(spans.get(current) ?? null, spans.get(other) ?? null)) {
+          reached.add(other);
+          queue.push(other);
+        }
+      }
+    }
+    return reached;
+  };
+
   let branch = anchorId;
   const walked = new Set<string>();
   while (!walked.has(branch)) {
     walked.add(branch);
     const parent = parentOf.get(branch);
-    const siblings = [...(parent ? (children.get(parent) ?? []) : roots)];
+    // At the roots level every parentless node is a "sibling", including
+    // unrelated islands elsewhere on the canvas — only push the ones whose
+    // column is reachable from this branch through overlapping spans.
+    let siblings: string[];
+    if (parent) {
+      siblings = [...(children.get(parent) ?? [])];
+    } else {
+      const touching = rootsTouching(branch);
+      siblings = roots.filter((id) => touching.has(id));
+    }
     if (siblings.length > 1 && siblings.includes(branch)) {
       // Center, not top: stretching one card's top edge must not reorder the branch.
-      siblings.sort((a, b) => topOf(a) + bottomOf(a) - (topOf(b) + bottomOf(b)));
+      siblings.sort((a, b) => orderCenter(a) - orderCenter(b));
       const index = siblings.indexOf(branch);
 
       let previousBottom = bottomOf(branch);

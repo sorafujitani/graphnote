@@ -237,6 +237,14 @@
   @apply relative isolate w-full min-w-[200px] max-w-[320px] overflow-hidden rounded-xl border border-line bg-surface px-3 py-[0.65rem] shadow-panel;
 }
 
+/* Keep auto-sized cards within what estimateNoteHeight assumes (MAX = 520)
+   so Arrange reserves enough room; long bodies scroll inside the card.
+   Manually sized cards must NOT be clamped — NOTE_MAX_HEIGHT is 900. */
+.note-shell:not(.is-manually-sized) .note-card {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
 .note-shell.is-manually-sized .note-card {
   width: 100%;
   max-width: none;

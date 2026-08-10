@@ -80,3 +80,56 @@ describe("layoutTree", () => {
     expect(pos.get("c")!.y).toBeLessThan(pos.get("b")!.y);
   });
 });
+
+describe("layoutTree regression fixes", () => {
+  it("does not let a tall parent overlap the previous root subtree", () => {
+    const nodes = [
+      { id: "r1", height: 100, y: 0 },
+      { id: "r2", height: 500, y: 100 },
+      { id: "c", height: 100, y: 100 },
+    ];
+    const edges = [{ source_id: "r2", target_id: "c" }];
+    const pos = layoutTree(nodes, edges, { x0: 0, y0: 0, gap: 32 });
+
+    // r2 starts below r1's band, and nothing goes above y0.
+    expect(pos.get("r2")!.y).toBeGreaterThanOrEqual(100 + 32);
+    for (const { y } of pos.values()) {
+      expect(y).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("widens only the column that holds the wide card", () => {
+    const nodes = [
+      { id: "p", width: 1200 },
+      { id: "a", width: 200 },
+      { id: "b", width: 200 },
+    ];
+    const edges = [
+      { source_id: "p", target_id: "a" },
+      { source_id: "a", target_id: "b" },
+    ];
+    const pos = layoutTree(nodes, edges, { x0: 0, y0: 0, gap: 32 });
+
+    expect(pos.get("a")!.x).toBe(1260);
+    // a's column is narrow, so b steps by the default column width, not p's.
+    expect(pos.get("b")!.x).toBe(1260 + 340);
+  });
+
+  it("sorts a node with a saved y ahead of nodes without one", () => {
+    const nodes = [
+      { id: "r" },
+      { id: "a", y: 100, height: 100 },
+      { id: "b" },
+      { id: "c", y: 50, height: 100 },
+    ];
+    const edges = [
+      { source_id: "r", target_id: "a" },
+      { source_id: "r", target_id: "b" },
+      { source_id: "r", target_id: "c" },
+    ];
+    const pos = layoutTree(nodes, edges, { x0: 0, y0: 0, dy: 100, gap: 20 });
+
+    expect(pos.get("c")!.y).toBeLessThan(pos.get("a")!.y);
+    expect(pos.get("a")!.y).toBeLessThan(pos.get("b")!.y);
+  });
+});
