@@ -427,3 +427,40 @@ describe("adding a note", () => {
     });
   });
 });
+
+const badgeOwners = () =>
+  [...document.querySelectorAll<HTMLElement>(".note-parent-badge")].map(
+    (badge) => badge.closest<HTMLElement>(".react-flow__node")?.dataset.id,
+  );
+
+describe("the note Tab grows a child from", () => {
+  it("hands the badge back to the selected note when the pointer leaves", async () => {
+    // Reported as "Tab grew a child from a note I had left behind".
+    const api = await mountEditor(twoNotes());
+    const pane = document.querySelector(".react-flow__pane") as HTMLElement;
+
+    await userEvent.click(cardElement("n1"));
+    await waitFor(() => expect(badgeOwners()).toEqual(["n1"]));
+
+    await userEvent.hover(cardElement("n2"));
+    await waitFor(() => expect(badgeOwners()).toEqual(["n2"]));
+
+    await userEvent.hover(pane, { position: { x: 40, y: 620 } });
+    await waitFor(() => expect(badgeOwners()).toEqual(["n1"]));
+
+    await userEvent.keyboard("{Tab}");
+    await waitFor(() => expect(api.createdEdges).toEqual(["n1->n3"]));
+  });
+
+  it("drops the badge when the selection is cleared", async () => {
+    await mountEditor(twoNotes());
+    const pane = document.querySelector(".react-flow__pane") as HTMLElement;
+
+    await userEvent.click(cardElement("n1"));
+    await waitFor(() => expect(badgeOwners()).toEqual(["n1"]));
+
+    await userEvent.click(pane, { position: { x: 40, y: 620 } });
+
+    await waitFor(() => expect(badgeOwners()).toEqual([]));
+  });
+});

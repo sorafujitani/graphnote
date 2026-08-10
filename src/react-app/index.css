@@ -12,6 +12,7 @@
   --color-surface-soft: #1a222e;
   --color-ink: #f4f7fb;
   --color-muted: #94a3b8;
+  --color-body: #dbe3ee;
   --color-line: #2a3442;
   --color-accent: #60a5fa;
   --color-accent-soft: #1a2a3d;
@@ -322,7 +323,7 @@
 
 .note-body-preview {
   min-height: 2.8em;
-  color: var(--color-muted);
+  color: var(--color-body);
   font-size: 0.82rem;
   line-height: 1.45;
 }
@@ -333,7 +334,7 @@
 
 .note-body-editor {
   min-height: 4.2em;
-  color: var(--color-muted);
+  color: var(--color-body);
   font-family: var(--font-mono);
   font-size: 0.82rem;
   line-height: 1.45;
@@ -342,7 +343,7 @@
 /* Markdown is generated content, so descendant selectors are the right boundary. */
 .note-md {
   max-width: 100%;
-  color: var(--color-muted);
+  color: var(--color-body);
   overflow-wrap: anywhere;
   word-break: break-word;
 }

@@ -65,6 +65,10 @@ Move and type are separate gestures, and the tests are the spec:
   the title as the only drag surface.
 - One click selects (canvas shortcuts keep working); a double click on a preview
   opens that preview's editor. `Enter` on the canvas does the same.
+- The `Tabで子ノード` badge marks the one note `Tab` grows a child from, and it is
+  derived — `hoveredNodeId ?? selectedNodeIds[0]`, nothing else. Never mirror
+  hover into a second piece of state: the previous `focusNodeId` kept pointing at
+  a note the pointer had already left, so `Tab` grew children from the wrong card.
 - The canvas asks for an editor through node data (`data.editRequest` with a
   nonce), never by querying the DOM for a field. A note focuses the editor as it
   mounts, so no timer has to race the mount.

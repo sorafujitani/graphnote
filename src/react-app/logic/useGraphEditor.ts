@@ -51,9 +51,8 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const [nodes, setNodes] = useState<AppNode[]>([]);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
+  /** The note under the pointer; selection stands in for it without a mouse. */
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  /** keyboard stand-in for hover — can be set without a mouse */
-  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [linkSourceId, setLinkSourceId] = useState<string | null>(null);
   const [editRequest, setEditRequest] = useState<EditRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +67,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const selectedNodeIdsRef = useRef(selectedNodeIds);
   const selectedEdgeIdsRef = useRef(selectedEdgeIds);
   const hoveredNodeIdRef = useRef(hoveredNodeId);
-  const focusNodeIdRef = useRef(focusNodeId);
   const nodeRecordsRef = useRef(nodeRecords);
   const edgeRecordsRef = useRef(edgeRecords);
   const busyRef = useRef(busy);
@@ -77,7 +75,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     selectedNodeIdsRef.current = selectedNodeIds;
     selectedEdgeIdsRef.current = selectedEdgeIds;
     hoveredNodeIdRef.current = hoveredNodeId;
-    focusNodeIdRef.current = focusNodeId;
     nodeRecordsRef.current = nodeRecords;
     edgeRecordsRef.current = edgeRecords;
     busyRef.current = busy;
@@ -85,7 +82,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   }, [
     busy,
     edgeRecords,
-    focusNodeId,
     hoveredNodeId,
     linkSourceId,
     nodeRecords,
@@ -93,7 +89,13 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     selectedNodeIds,
   ]);
 
-  const activeParentId = hoveredNodeId ?? focusNodeId ?? selectedNodeIds[0] ?? null;
+  const activeParentId = hoveredNodeId ?? selectedNodeIds[0] ?? null;
+
+  /** Same rule as `activeParentId`, for callbacks that only hold refs. */
+  const currentParentId = useCallback(
+    () => hoveredNodeIdRef.current ?? selectedNodeIdsRef.current[0] ?? null,
+    [],
+  );
 
   /** Asks a note to open one of its editors; the note focuses it as it mounts. */
   const requestEdit = useCallback((nodeId: string, field: "title" | "body") => {
@@ -139,7 +141,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         setSelectedNodeIds([]);
         setSelectedEdgeIds([]);
         setHoveredNodeId(null);
-        setFocusNodeId(null);
         setNodes(presentNodes(detail.nodes, [], null, null, []));
         requestAnimationFrame(() => {
           void flowRef.current?.fitView({ padding: 0.25 });
@@ -153,6 +154,14 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       ignore = true;
     };
   }, [graphId]);
+
+  // A note that is deleted or replaced never fires mouseleave, so a stale hover
+  // would keep offering Tab a parent that is no longer under the pointer.
+  useEffect(() => {
+    setHoveredNodeId((previous) =>
+      previous && !nodeRecords.some((node) => node.id === previous) ? null : previous,
+    );
+  }, [nodeRecords]);
 
   useEffect(() => {
     setNodes((prev) =>
@@ -186,18 +195,15 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const selectNodes = useCallback((ids: string[]) => {
     setSelectedNodeIds(ids);
     setSelectedEdgeIds([]);
-    if (ids[0]) setFocusNodeId(ids[0]);
   }, []);
 
-  const focusParent = useCallback((id: string | null) => {
-    if (!id) {
-      setFocusNodeId(null);
-      return;
-    }
-    setFocusNodeId(id);
-    setSelectedNodeIds([id]);
-    setSelectedEdgeIds([]);
-  }, []);
+  /** Selection is the keyboard's stand-in for hover, so focusing is selecting. */
+  const focusParent = useCallback(
+    (id: string | null) => {
+      selectNodes(id ? [id] : []);
+    },
+    [selectNodes],
+  );
 
   const onNodesChange = useCallback((changes: NodeChange<AppNode>[]) => {
     setNodes((prev) => applyNodeChanges(changes, prev));
@@ -232,7 +238,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     startTransition(() => {
       setSelectedNodeIds(ids);
       setSelectedEdgeIds(edgeIds);
-      if (ids[0]) setFocusNodeId(ids[0]);
     });
   }, []);
 
@@ -351,7 +356,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         }
 
         selectNodes([node.id]);
-        setFocusNodeId(node.id);
         revealNodes();
         if (opts?.focus !== false) {
           requestEdit(node.id, "title");
@@ -368,8 +372,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     [graphId, requestEdit, revealNodes, selectNodes],
   );
   const addChildFromActiveParent = useCallback(async () => {
-    const parentId =
-      hoveredNodeIdRef.current ?? focusNodeIdRef.current ?? selectedNodeIdsRef.current[0] ?? null;
+    const parentId = currentParentId();
     if (!parentId) {
       const first = nodeRecordsRef.current[0]?.id;
       if (first) {
@@ -381,7 +384,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       return;
     }
     await onAddNode({ parentId, focus: true, requireParent: true });
-  }, [focusParent, onAddNode]);
+  }, [currentParentId, focusParent, onAddNode]);
 
   const onDeleteSelection = useCallback(
     async (cascade: boolean) => {
@@ -400,9 +403,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
           const deletedNodes = new Set(result.deletedNodeIds);
           for (const edgeId of result.deletedEdgeIds) removedEdgeIds.add(edgeId);
           setNodeRecords((prev) => prev.filter((node) => !deletedNodes.has(node.id)));
-          if (focusNodeIdRef.current && deletedNodes.has(focusNodeIdRef.current)) {
-            setFocusNodeId(null);
-          }
         }
         const remainingEdgeIds = edgeIds.filter((edgeId) => !removedEdgeIds.has(edgeId));
         const deletedEdgeIds = await Promise.all(
@@ -528,7 +528,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         setError(null);
         return;
       }
-      setFocusNodeId(null);
+
       selectNodes([]);
       return;
     }
@@ -536,8 +536,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     // F / Space: focus first node or keep cycling focus without mouse
     if ((key === "f" || event.key === " ") && !mod) {
       event.preventDefault();
-      const current =
-        focusNodeIdRef.current ?? hoveredNodeIdRef.current ?? selectedNodeIdsRef.current[0];
+      const current = currentParentId();
       if (current) {
         focusParent(current);
         return;
@@ -561,8 +560,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     }
 
     if (event.key === "Enter" && !mod) {
-      const id =
-        selectedNodeIdsRef.current[0] ?? focusNodeIdRef.current ?? hoveredNodeIdRef.current;
+      const id = currentParentId();
       if (!id) {
         const first = nodeRecordsRef.current[0]?.id;
         if (first) {
@@ -653,8 +651,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       // React Flow also handles arrows on a focused node (as a position
       // nudge). Keep one predictable owner for the graph's arrow shortcuts.
       event.stopPropagation();
-      const current =
-        focusNodeIdRef.current ?? hoveredNodeIdRef.current ?? selectedNodeIdsRef.current[0];
+      const current = currentParentId();
 
       if (event.shiftKey && current) {
         const step = event.altKey ? 10 : 40;
@@ -772,7 +769,6 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const onNodeMouseEnter = useCallback((nodeId: string) => {
     startTransition(() => {
       setHoveredNodeId(nodeId);
-      setFocusNodeId(nodeId);
     });
   }, []);
 

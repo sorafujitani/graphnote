@@ -565,150 +565,144 @@ async function main(): Promise<void> {
   }
   const restFlags = flags;
 
-  try {
-    switch (command) {
-      case "health": {
-        const { url } = loadConfig();
-        const res = await fetch(`${url}/api/health`);
-        const data = (await res.json()) as Record<string, unknown>;
-        print({ url, ...data, status: res.status });
+  switch (command) {
+    case "health": {
+      const { url } = loadConfig();
+      const res = await fetch(`${url}/api/health`);
+      const data = (await res.json()) as Record<string, unknown>;
+      print({ url, ...data, status: res.status });
+      return;
+    }
+    case "config": {
+      const [sub, ...cfgArgs] = cmdArgs;
+      if (sub === "show" || !sub) {
+        const cfg = loadConfig();
+        print({
+          url: cfg.url,
+          token: cfg.token ? "***" : "",
+          configPath: configPath(),
+          hasToken: cfg.hasCredential,
+          tokenUsableForUrl: Boolean(cfg.token),
+          tokenBoundTo: cfg.tokenBoundTo,
+        });
         return;
       }
-      case "config": {
-        const [sub, ...cfgArgs] = cmdArgs;
-        if (sub === "show" || !sub) {
-          const cfg = loadConfig();
-          print({
-            url: cfg.url,
-            token: cfg.token ? "***" : "",
-            configPath: configPath(),
-            hasToken: cfg.hasCredential,
-            tokenUsableForUrl: Boolean(cfg.token),
-            tokenBoundTo: cfg.tokenBoundTo,
-          });
-          return;
-        }
-        if (sub === "set-url") {
-          const url = cfgArgs[0];
-          if (!url) fail("usage: gqn config set-url <url>");
-          const saved = saveConfig({ url: url.replace(/\/$/, "") });
-          print({ ok: true, url: saved.url });
-          return;
-        }
-        if (sub === "set-token") {
-          const tokenFlag = flag(restFlags, "token");
-          const argumentToken = cfgArgs[0] || (typeof tokenFlag === "string" ? tokenFlag : "");
-          if (argumentToken) {
-            process.stderr.write(
-              "warning: passing a token as an argument may expose it in shell history; " +
-                "run `gqn config set-token` and paste it into the prompt instead\n",
-            );
-          }
-          const token = argumentToken || (await readSecret());
-          if (!token) fail("API token required");
-          if (!token.startsWith("gqn_")) fail("invalid API token format");
-          const boundUrl = targetUrl(readConfigFile());
-          if (!isAllowedCredentialTarget(boundUrl)) {
-            fail(`refusing to bind a token to an unsafe target: ${boundUrl}`);
-          }
-          saveConfig({ token, tokenUrl: boundUrl });
-          print({ ok: true, boundTo: boundUrl });
-          return;
-        }
-        fail("usage: gqn config <show|set-url|set-token>");
+      if (sub === "set-url") {
+        const url = cfgArgs[0];
+        if (!url) fail("usage: gqn config set-url <url>");
+        const saved = saveConfig({ url: url.replace(/\/$/, "") });
+        print({ ok: true, url: saved.url });
+        return;
       }
-      case "login": {
-        fail(
-          "use Google sign-in in the web UI, create an API token, then run: gqn config set-token",
-        );
-      }
-      case "logout": {
-        const cfg = loadConfig();
-        let revoked = false;
-        if (cfg.token) {
-          if (!isAllowedCredentialTarget(cfg.url)) {
-            fail(`refusing credentials over an unsafe target: ${cfg.url}`);
-          }
-          const res = await fetch(`${cfg.url}/api/token`, {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${cfg.token}`, Accept: "application/json" },
-            redirect: "manual",
-          });
-          if (!res.ok && res.status !== 401) {
-            fail(`could not revoke token: ${res.status} ${res.statusText}`);
-          }
-          revoked = res.ok;
-        } else if (cfg.hasCredential) {
-          fail(
-            `saved token is bound to ${cfg.tokenBoundTo ?? "another origin"}; ` +
-              "select that target before logout",
+      if (sub === "set-token") {
+        const tokenFlag = flag(restFlags, "token");
+        const argumentToken = cfgArgs[0] || (typeof tokenFlag === "string" ? tokenFlag : "");
+        if (argumentToken) {
+          process.stderr.write(
+            "warning: passing a token as an argument may expose it in shell history; " +
+              "run `gqn config set-token` and paste it into the prompt instead\n",
           );
         }
-        saveConfig({ token: "", tokenUrl: "" });
-        print({ ok: true, revoked });
-        return;
-      }
-      case "whoami": {
-        const data = await api<{ authenticated: boolean; user?: unknown }>(
-          "GET",
-          "/api/me",
-          undefined,
-          {
-            allowUnauthorized: true,
-          },
-        );
-        print({ ...data, url: loadConfig().url });
-        return;
-      }
-      case "graphs":
-      case "graph":
-      case "notes":
-        print(await cmdGraphs(cmdArgs, restFlags));
-        return;
-      case "nodes":
-      case "node":
-        print(await cmdNodes(cmdArgs, restFlags));
-        return;
-      case "edges":
-      case "edge":
-        print(await cmdEdges(cmdArgs, restFlags));
-        return;
-      case "cascade": {
-        const [graphId, ...nodeIds] = cmdArgs;
-        if (!graphId || nodeIds.length === 0) {
-          fail("usage: gqn cascade <graphId> <nodeId...> [--mode outgoing|both]");
+        const token = argumentToken || (await readSecret());
+        if (!token) fail("API token required");
+        if (!token.startsWith("gqn_")) fail("invalid API token format");
+        const boundUrl = targetUrl(readConfigFile());
+        if (!isAllowedCredentialTarget(boundUrl)) {
+          fail(`refusing to bind a token to an unsafe target: ${boundUrl}`);
         }
-        const modeFlag = flag(restFlags, "mode");
-        const mode = typeof modeFlag === "string" ? modeFlag : "outgoing";
-        print(
-          await api<CascadeResult>("POST", `/api/graphs/${graphId}/cascade-select`, {
-            nodeIds,
-            mode,
-          }),
-        );
+        saveConfig({ token, tokenUrl: boundUrl });
+        print({ ok: true, boundTo: boundUrl });
         return;
       }
-      case "export": {
-        const id = cmdArgs[0];
-        if (!id) fail("usage: gqn export <graphId>");
-        print(
-          await api<{ export: GraphExport; r2Key: string }>("POST", `/api/graphs/${id}/export`),
-        );
-        return;
-      }
-      case "fmt":
-      case "format": {
-        const id = cmdArgs[0];
-        if (!id) fail("usage: gqn fmt <graphId>");
-        print(await api<GraphDetail>("POST", `/api/graphs/${id}/fmt`));
-        return;
-      }
-      default:
-        fail(`unknown command: ${command}\n\n${HELP}`);
+      fail("usage: gqn config <show|set-url|set-token>");
     }
-  } catch (err) {
-    fail(err instanceof Error ? err.message : String(err));
+    case "login": {
+      fail("use Google sign-in in the web UI, create an API token, then run: gqn config set-token");
+    }
+    case "logout": {
+      const cfg = loadConfig();
+      let revoked = false;
+      if (cfg.token) {
+        if (!isAllowedCredentialTarget(cfg.url)) {
+          fail(`refusing credentials over an unsafe target: ${cfg.url}`);
+        }
+        const res = await fetch(`${cfg.url}/api/token`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${cfg.token}`, Accept: "application/json" },
+          redirect: "manual",
+        });
+        if (!res.ok && res.status !== 401) {
+          fail(`could not revoke token: ${res.status} ${res.statusText}`);
+        }
+        revoked = res.ok;
+      } else if (cfg.hasCredential) {
+        fail(
+          `saved token is bound to ${cfg.tokenBoundTo ?? "another origin"}; ` +
+            "select that target before logout",
+        );
+      }
+      saveConfig({ token: "", tokenUrl: "" });
+      print({ ok: true, revoked });
+      return;
+    }
+    case "whoami": {
+      const data = await api<{ authenticated: boolean; user?: unknown }>(
+        "GET",
+        "/api/me",
+        undefined,
+        {
+          allowUnauthorized: true,
+        },
+      );
+      print({ ...data, url: loadConfig().url });
+      return;
+    }
+    case "graphs":
+    case "graph":
+    case "notes":
+      print(await cmdGraphs(cmdArgs, restFlags));
+      return;
+    case "nodes":
+    case "node":
+      print(await cmdNodes(cmdArgs, restFlags));
+      return;
+    case "edges":
+    case "edge":
+      print(await cmdEdges(cmdArgs, restFlags));
+      return;
+    case "cascade": {
+      const [graphId, ...nodeIds] = cmdArgs;
+      if (!graphId || nodeIds.length === 0) {
+        fail("usage: gqn cascade <graphId> <nodeId...> [--mode outgoing|both]");
+      }
+      const modeFlag = flag(restFlags, "mode");
+      const mode = typeof modeFlag === "string" ? modeFlag : "outgoing";
+      print(
+        await api<CascadeResult>("POST", `/api/graphs/${graphId}/cascade-select`, {
+          nodeIds,
+          mode,
+        }),
+      );
+      return;
+    }
+    case "export": {
+      const id = cmdArgs[0];
+      if (!id) fail("usage: gqn export <graphId>");
+      print(await api<{ export: GraphExport; r2Key: string }>("POST", `/api/graphs/${id}/export`));
+      return;
+    }
+    case "fmt":
+    case "format": {
+      const id = cmdArgs[0];
+      if (!id) fail("usage: gqn fmt <graphId>");
+      print(await api<GraphDetail>("POST", `/api/graphs/${id}/fmt`));
+      return;
+    }
+    default:
+      fail(`unknown command: ${command}\n\n${HELP}`);
   }
 }
 
-await main();
+main().catch((err: unknown) => {
+  fail(err instanceof Error ? err.message : String(err));
+});
