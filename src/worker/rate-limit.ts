@@ -6,35 +6,32 @@ export async function checkRateLimit(
   db: D1Database,
   key: string,
   limit: number,
+  windowMs: number = WINDOW_MS,
 ): Promise<{ ok: true } | { ok: false; retryAfterSec: number }> {
   const now = Date.now();
+  // Single atomic upsert: concurrent requests each get their own counted slot,
+  // unlike a read-check-write sequence where they all observe the same count.
   const row = await db
-    .prepare(`SELECT count, window_start FROM rate_limits WHERE key = ?`)
-    .bind(key)
+    .prepare(
+      `INSERT INTO rate_limits (key, count, window_start) VALUES (?1, 1, ?2)
+       ON CONFLICT(key) DO UPDATE SET
+         count = CASE WHEN ?2 - window_start >= ?3 THEN 1 ELSE count + 1 END,
+         window_start = CASE WHEN ?2 - window_start >= ?3 THEN ?2 ELSE window_start END
+       RETURNING count, window_start`,
+    )
+    .bind(key, now, windowMs)
     .first<{ count: number; window_start: number }>();
-
-  if (!row || now - row.window_start >= WINDOW_MS) {
-    await db
-      .prepare(
-        `INSERT INTO rate_limits (key, count, window_start) VALUES (?, 1, ?)
-         ON CONFLICT(key) DO UPDATE SET count = 1, window_start = excluded.window_start`,
-      )
-      .bind(key, now)
-      .run();
-    return { ok: true };
-  }
-
-  if (row.count >= limit) {
-    const retryAfterSec = Math.max(1, Math.ceil((row.window_start + WINDOW_MS - now) / 1000));
-    return { ok: false, retryAfterSec };
-  }
-
-  await db.prepare(`UPDATE rate_limits SET count = count + 1 WHERE key = ?`).bind(key).run();
-  return { ok: true };
+  if (!row || row.count <= limit) return { ok: true };
+  const retryAfterSec = Math.max(1, Math.ceil((row.window_start + windowMs - now) / 1000));
+  return { ok: false, retryAfterSec };
 }
 
 export function authRateKey(ip: string): string {
   return `auth:${ip}`;
+}
+
+export function ipRateKey(ip: string): string {
+  return `ip:${ip}`;
 }
 
 export function readRateKey(userId: string): string {
@@ -43,6 +40,10 @@ export function readRateKey(userId: string): string {
 
 export function writeRateKey(userId: string): string {
   return `write:${userId}`;
+}
+
+export function exportRateKey(userId: string): string {
+  return `export:${userId}`;
 }
 
 export { RATE_LIMIT };

@@ -15,11 +15,10 @@ import {
   createEdge,
   createGraph,
   createNode,
-  deleteAllUserGraphs,
-  deleteAuthUser,
   deleteEdge,
   deleteGraph,
   deleteNodes,
+  deleteUserAccount,
   formatGraphLayout,
   getGraphDetail,
   importGraph,
@@ -28,19 +27,63 @@ import {
   updateNode,
 } from "./db";
 import type { Bindings } from "./env";
-import { deleteUserExports, putGraphExport } from "./exports";
-import { RATE_LIMIT, authRateKey, checkRateLimit, readRateKey, writeRateKey } from "./rate-limit";
+import { deleteUserExports, getGraphExport, listGraphExports, putGraphExport } from "./exports";
+import {
+  RATE_LIMIT,
+  authRateKey,
+  checkRateLimit,
+  exportRateKey,
+  ipRateKey,
+  readRateKey,
+  writeRateKey,
+} from "./rate-limit";
 import { createApiToken, deleteApiToken, listApiTokens } from "./tokens";
+import {
+  parseCascadeSelectBody,
+  parseCreateEdgeBody,
+  parseCreateNodeBody,
+  parseCreateTokenBody,
+  parseDeleteNodesBody,
+  parseGraphTitleBody,
+  parseImportBody,
+  parseUpdateNodeBody,
+  readJsonBody,
+  type ParseResult,
+} from "./validate";
 
 type AppEnv = { Bindings: Bindings; Variables: AuthVariables };
 
 const app = new Hono<AppEnv>();
+
+app.onError((err, c) => {
+  console.error("unhandled error", err);
+  return c.json({ error: "internal error" }, 500);
+});
+
+app.notFound((c) => c.json({ error: "not found" }, 404));
 
 function badRequest(
   c: { json: (data: unknown, status: ContentfulStatusCode) => Response },
   message: string,
 ) {
   return c.json({ error: message }, 400);
+}
+
+function invalidBody(c: Context<AppEnv>, parsed: { error: string; status: 400 | 413 }) {
+  return c.json({ error: parsed.error }, parsed.status);
+}
+
+/** Reads and validates the JSON body in one step; returns a Response on failure. */
+async function parseBody<T>(
+  c: Context<AppEnv>,
+  parse: (raw: unknown) => ParseResult<T>,
+  maxBytes?: number,
+): Promise<{ value: T } | { response: Response }> {
+  const raw = await readJsonBody(c.req, maxBytes);
+  if (!raw.ok) return { response: invalidBody(c, raw) };
+  const parsed = parse(raw.value);
+  if (!parsed.ok) return { response: invalidBody(c, parsed) };
+  return { value: parsed.value };
 }
 
 function clientIp(c: { req: { header: (name: string) => string | undefined } }): string {
@@ -72,6 +115,17 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => {
 });
 
 const api = new Hono<AppEnv>();
+// IP throttle runs before authentication so unauthenticated floods cannot
+// hammer session/token lookups without ever hitting a limit.
+api.use("*", async (c, next) => {
+  const limited = await checkRateLimit(
+    c.env.DB,
+    ipRateKey(clientIp(c)),
+    RATE_LIMIT.requestsPerIpPerMinute,
+  );
+  if (!limited.ok) return rateLimited(c, limited.retryAfterSec);
+  await next();
+});
 api.use("*", requireUser);
 api.use("*", async (c, next) => {
   const read = c.req.method === "GET" || c.req.method === "HEAD" || c.req.method === "OPTIONS";
@@ -94,7 +148,10 @@ api.get("/me", requireScope("graph:read"), async (c) => {
     if (!row) return c.json({ error: "unauthorized" }, 401);
     user = { ...row, image: row.image ?? null };
   }
-  return c.json({ authenticated: true, user });
+  // Token callers learn their scopes here instead of discovering a read-only
+  // key through a 403 on their first write.
+  const token = c.get("authMethod") === "token" ? { scopes: c.get("tokenScopes") } : undefined;
+  return c.json({ authenticated: true, user, ...(token ? { token } : {}) });
 });
 
 api.get("/graphs", requireScope("graph:read"), async (c) =>
@@ -102,17 +159,18 @@ api.get("/graphs", requireScope("graph:read"), async (c) =>
 );
 
 api.post("/graphs", requireScope("graph:write"), async (c) => {
-  const body = await c.req.json<{ title?: string }>().catch(() => null);
-  const title = body?.title?.trim() || "Untitled note";
+  const body = await parseBody(c, parseGraphTitleBody);
+  if ("response" in body) return body.response;
+  const title = body.value.title?.trim() || "Untitled note";
   const result = await createGraph(c.env.DB, c.get("userId"), title, { withRootNode: true });
   if ("error" in result) return badRequest(c, result.error);
   return c.json(result, 201);
 });
 
 api.post("/graphs/import", requireScope("graph:write"), async (c) => {
-  const body = await c.req.json<GraphExport>().catch(() => null);
-  if (!body) return badRequest(c, "invalid body");
-  const result = await importGraph(c.env.DB, c.get("userId"), body);
+  const body = await parseBody(c, parseImportBody, QUOTA.maxImportBytes);
+  if ("response" in body) return body.response;
+  const result = await importGraph(c.env.DB, c.get("userId"), body.value);
   if ("error" in result) return badRequest(c, result.error);
   return c.json(result, 201);
 });
@@ -124,8 +182,9 @@ api.get("/graphs/:graphId", requireScope("graph:read"), async (c) => {
 });
 
 api.patch("/graphs/:graphId", requireScope("graph:write"), async (c) => {
-  const body = await c.req.json<{ title?: string }>().catch(() => null);
-  const title = body?.title?.trim();
+  const body = await parseBody(c, parseGraphTitleBody);
+  if ("response" in body) return body.response;
+  const title = body.value.title?.trim();
   if (!title) return badRequest(c, "title required");
   const graph = await renameGraph(c.env.DB, c.get("userId"), c.req.param("graphId"), title);
   if (!graph) return c.json({ error: "not found" }, 404);
@@ -139,33 +198,23 @@ api.delete("/graphs/:graphId", requireScope("graph:write"), async (c) => {
 });
 
 api.post("/graphs/:graphId/nodes", requireScope("graph:write"), async (c) => {
-  const body = await c.req
-    .json<{ title?: string; body?: string; x?: number; y?: number }>()
-    .catch(() => null);
-  const node = await createNode(c.env.DB, c.get("userId"), c.req.param("graphId"), body ?? {});
+  const body = await parseBody(c, parseCreateNodeBody);
+  if ("response" in body) return body.response;
+  const node = await createNode(c.env.DB, c.get("userId"), c.req.param("graphId"), body.value);
   if (!node) return c.json({ error: "not found" }, 404);
   if ("error" in node) return badRequest(c, node.error);
   return c.json({ node }, 201);
 });
 
 api.patch("/graphs/:graphId/nodes/:nodeId", requireScope("graph:write"), async (c) => {
-  const body = await c.req
-    .json<{
-      title?: string;
-      body?: string;
-      x?: number;
-      y?: number;
-      width?: number | null;
-      height?: number | null;
-    }>()
-    .catch(() => null);
-  if (!body) return badRequest(c, "invalid body");
+  const body = await parseBody(c, parseUpdateNodeBody);
+  if ("response" in body) return body.response;
   const node = await updateNode(
     c.env.DB,
     c.get("userId"),
     c.req.param("graphId"),
     c.req.param("nodeId"),
-    body,
+    body.value,
   );
   if (!node) return c.json({ error: "not found" }, 404);
   if ("error" in node) return badRequest(c, node.error);
@@ -173,32 +222,25 @@ api.patch("/graphs/:graphId/nodes/:nodeId", requireScope("graph:write"), async (
 });
 
 api.post("/graphs/:graphId/nodes/delete", requireScope("graph:write"), async (c) => {
-  const body = await c.req.json<{ ids?: string[]; cascade?: boolean }>().catch(() => null);
-  if (!body?.ids?.length) return badRequest(c, "ids required");
+  const body = await parseBody(c, parseDeleteNodesBody);
+  if ("response" in body) return body.response;
   const result = await deleteNodes(
     c.env.DB,
     c.get("userId"),
     c.req.param("graphId"),
-    body.ids,
-    Boolean(body.cascade),
+    body.value.ids,
+    body.value.cascade,
   );
   if (!result) return c.json({ error: "not found" }, 404);
   return c.json(result);
 });
 
 api.post("/graphs/:graphId/edges", requireScope("graph:write"), async (c) => {
-  const body = await c.req
-    .json<{ source_id?: string; target_id?: string; label?: string }>()
-    .catch(() => null);
-  if (!body?.source_id || !body?.target_id) {
-    return badRequest(c, "source_id and target_id required");
-  }
-  const edge = await createEdge(c.env.DB, c.get("userId"), c.req.param("graphId"), {
-    source_id: body.source_id,
-    target_id: body.target_id,
-    label: body.label,
-  });
-  if (!edge) return badRequest(c, "could not create edge");
+  const body = await parseBody(c, parseCreateEdgeBody);
+  if ("response" in body) return body.response;
+  const edge = await createEdge(c.env.DB, c.get("userId"), c.req.param("graphId"), body.value);
+  if (!edge) return c.json({ error: "not found" }, 404);
+  if ("error" in edge) return badRequest(c, edge.error);
   return c.json({ edge }, 201);
 });
 
@@ -214,16 +256,14 @@ api.delete("/graphs/:graphId/edges/:edgeId", requireScope("graph:write"), async 
 });
 
 api.post("/graphs/:graphId/cascade-select", requireScope("graph:read"), async (c) => {
-  const body = await c.req
-    .json<{ nodeIds?: string[]; mode?: "outgoing" | "both" }>()
-    .catch(() => null);
-  if (!body?.nodeIds?.length) return badRequest(c, "nodeIds required");
+  const body = await parseBody(c, parseCascadeSelectBody);
+  if ("response" in body) return body.response;
   const result = await cascadeSelect(
     c.env.DB,
     c.get("userId"),
     c.req.param("graphId"),
-    body.nodeIds,
-    body.mode ?? "outgoing",
+    body.value.nodeIds,
+    body.value.mode,
   );
   if (!result) return c.json({ error: "not found" }, 404);
   return c.json(result);
@@ -238,6 +278,14 @@ api.post("/graphs/:graphId/fmt", requireScope("graph:write"), async (c) => {
 api.post("/graphs/:graphId/export", requireScope("graph:export"), async (c) => {
   const detail = await getGraphDetail(c.env.DB, c.get("userId"), c.req.param("graphId"));
   if (!detail) return c.json({ error: "not found" }, 404);
+  // After the ownership check, so 404s cannot burn the hourly budget.
+  const limited = await checkRateLimit(
+    c.env.DB,
+    exportRateKey(c.get("userId")),
+    QUOTA.maxExportsPerHour,
+    60 * 60 * 1000,
+  );
+  if (!limited.ok) return rateLimited(c, limited.retryAfterSec);
   const payload: GraphExport = {
     version: 1,
     exportedAt: new Date().toISOString(),
@@ -249,14 +297,39 @@ api.post("/graphs/:graphId/export", requireScope("graph:export"), async (c) => {
   return c.json({ export: payload, r2Key });
 });
 
+api.get("/graphs/:graphId/exports", requireScope("graph:export"), async (c) => {
+  const detail = await getGraphDetail(c.env.DB, c.get("userId"), c.req.param("graphId"));
+  if (!detail) return c.json({ error: "not found" }, 404);
+  const exports = await listGraphExports(c.env.EXPORTS, c.get("userId"), c.req.param("graphId"));
+  return c.json({ exports });
+});
+
+api.get("/graphs/:graphId/exports/:name", requireScope("graph:export"), async (c) => {
+  const detail = await getGraphDetail(c.env.DB, c.get("userId"), c.req.param("graphId"));
+  if (!detail) return c.json({ error: "not found" }, 404);
+  const body = await getGraphExport(
+    c.env.EXPORTS,
+    c.get("userId"),
+    c.req.param("graphId"),
+    c.req.param("name"),
+  );
+  if (body === null) return c.json({ error: "not found" }, 404);
+  return c.body(body, 200, { "Content-Type": "application/json; charset=utf-8" });
+});
+
 api.get("/tokens", requireSession, async (c) =>
   c.json({ tokens: await listApiTokens(c.env.DB, c.get("userId")) }),
 );
 
 api.post("/tokens", requireSession, async (c) => {
-  const body = await c.req.json<{ name?: string; access?: "read" | "write" }>().catch(() => null);
-  const access = body?.access === "write" ? "write" : "read";
-  const result = await createApiToken(c.env.DB, c.get("userId"), body?.name ?? "My device", access);
+  const body = await parseBody(c, parseCreateTokenBody);
+  if ("response" in body) return body.response;
+  const result = await createApiToken(
+    c.env.DB,
+    c.get("userId"),
+    body.value.name ?? "My device",
+    body.value.access,
+  );
   if ("error" in result) return badRequest(c, result.error);
   return c.json(result, 201);
 });
@@ -271,22 +344,41 @@ api.delete("/token", requireToken, async (c) => {
   const tokenId = c.get("tokenId");
   if (!tokenId) return c.json({ error: "API token required" }, 403);
   const ok = await deleteApiToken(c.env.DB, c.get("userId"), tokenId);
-  return c.json({ ok });
+  if (!ok) return c.json({ error: "not found" }, 404);
+  return c.json({ ok: true });
 });
 
 api.delete("/account", requireSession, async (c) => {
-  const body = await c.req.json<{ confirmation?: string }>().catch(() => null);
-  if (body?.confirmation !== "DELETE MY ACCOUNT") {
+  const raw = await readJsonBody(c.req);
+  const confirmation =
+    raw.ok && typeof raw.value === "object" && raw.value !== null
+      ? (raw.value as { confirmation?: unknown }).confirmation
+      : undefined;
+  if (confirmation !== "DELETE MY ACCOUNT") {
     return badRequest(c, "account deletion confirmation required");
   }
   const userId = c.get("userId");
-  await deleteAllUserGraphs(c.env.DB, userId);
+  // R2 first: if it fails the account is untouched and the user can retry.
+  // D1 last and in one transaction, so a login can never survive with its
+  // notes half-deleted, and no orphaned exports outlive the account.
   await deleteUserExports(c.env.EXPORTS, userId);
-  await deleteAuthUser(c.env.DB, userId);
+  await deleteUserAccount(c.env.DB, userId);
   return c.json({ ok: true });
 });
 
 api.get("/quota", requireScope("graph:read"), (c) => c.json({ quota: QUOTA }));
 
 app.route("/api", api);
-export default app;
+
+async function scheduled(_event: ScheduledController, env: Bindings): Promise<void> {
+  const staleWindowStart = Date.now() - 2 * 60 * 60 * 1000;
+  await env.DB.prepare(`DELETE FROM rate_limits WHERE window_start < ?`)
+    .bind(staleWindowStart)
+    .run();
+  await env.DB.prepare(`DELETE FROM api_tokens WHERE expires_at < ?`)
+    .bind(new Date().toISOString())
+    .run();
+}
+
+export { app };
+export default { fetch: app.fetch, scheduled };

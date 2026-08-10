@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import app from "./index";
+import { app } from "./index";
 
 function envFor(scopes: string): Env {
   const db = {

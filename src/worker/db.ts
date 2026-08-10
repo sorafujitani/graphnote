@@ -97,20 +97,30 @@ export async function createGraph(
   const safeTitle = title.trim().slice(0, QUOTA.maxTitleChars) || "Untitled note";
   const id = crypto.randomUUID();
   const ts = nowIso();
-  await db
-    .prepare(
-      `INSERT INTO graphs (id, owner_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-    )
-    .bind(id, userId, safeTitle, ts, ts)
-    .run();
-
+  const statements = [
+    db
+      .prepare(
+        `INSERT INTO graphs (id, owner_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+      )
+      .bind(id, userId, safeTitle, ts, ts),
+  ];
   if (options.withRootNode !== false) {
-    await createNode(db, userId, id, {
-      title: safeTitle,
-      x: 80,
-      y: 200,
-    });
+    statements.push(
+      nodeInsertStatement(db, {
+        id: crypto.randomUUID(),
+        graph_id: id,
+        title: safeTitle,
+        body: "",
+        x: 80,
+        y: 200,
+        width: null,
+        height: null,
+        created_at: ts,
+        updated_at: ts,
+      }),
+    );
   }
+  await db.batch(statements);
 
   const detail = await getGraphDetail(db, userId, id);
   if (!detail) return { error: "create failed" };
@@ -146,16 +156,39 @@ export async function deleteGraph(
   return (result.meta.changes ?? 0) > 0;
 }
 
-export async function deleteAllUserGraphs(db: D1Database, userId: string): Promise<string[]> {
-  const graphs = await listGraphs(db, userId);
-  const ids = graphs.map((g) => g.id);
-  if (ids.length === 0) return [];
-  await db.prepare(`DELETE FROM graphs WHERE owner_id = ?`).bind(userId).run();
-  return ids;
+/** Deletes the user's graphs and auth records in one transaction. */
+export async function deleteUserAccount(db: D1Database, userId: string): Promise<void> {
+  await db.batch([
+    db.prepare(`DELETE FROM graphs WHERE owner_id = ?`).bind(userId),
+    db.prepare(`DELETE FROM api_tokens WHERE user_id = ?`).bind(userId),
+    db.prepare(`DELETE FROM session WHERE userId = ?`).bind(userId),
+    db.prepare(`DELETE FROM account WHERE userId = ?`).bind(userId),
+    db.prepare(`DELETE FROM user WHERE id = ?`).bind(userId),
+  ]);
 }
 
-async function touchGraph(db: D1Database, graphId: string): Promise<void> {
-  await db.prepare(`UPDATE graphs SET updated_at = ? WHERE id = ?`).bind(nowIso(), graphId).run();
+function touchGraphStatement(db: D1Database, graphId: string): D1PreparedStatement {
+  return db.prepare(`UPDATE graphs SET updated_at = ? WHERE id = ?`).bind(nowIso(), graphId);
+}
+
+function nodeInsertStatement(db: D1Database, node: NodeRecord): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO nodes (id, graph_id, title, body, x, y, width, height, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      node.id,
+      node.graph_id,
+      node.title,
+      node.body,
+      node.x,
+      node.y,
+      node.width,
+      node.height,
+      node.created_at,
+      node.updated_at,
+    );
 }
 
 export async function createNode(
@@ -168,6 +201,8 @@ export async function createNode(
   if ((await countNodes(db, graphId)) >= QUOTA.maxNodesPerGraph) {
     return { error: `node limit (${QUOTA.maxNodesPerGraph})` };
   }
+  if (input.x !== undefined && !Number.isFinite(input.x)) return { error: "x must be finite" };
+  if (input.y !== undefined && !Number.isFinite(input.y)) return { error: "y must be finite" };
   const body = (input.body ?? "").slice(0, QUOTA.maxBodyChars);
   const title = (input.title ?? "Untitled").slice(0, QUOTA.maxTitleChars);
   const id = crypto.randomUUID();
@@ -184,25 +219,7 @@ export async function createNode(
     created_at: ts,
     updated_at: ts,
   };
-  await db
-    .prepare(
-      `INSERT INTO nodes (id, graph_id, title, body, x, y, width, height, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      node.id,
-      node.graph_id,
-      node.title,
-      node.body,
-      node.x,
-      node.y,
-      node.width,
-      node.height,
-      node.created_at,
-      node.updated_at,
-    )
-    .run();
-  await touchGraph(db, graphId);
+  await db.batch([nodeInsertStatement(db, node), touchGraphStatement(db, graphId)]);
   return node;
 }
 
@@ -236,8 +253,8 @@ export async function formatGraphLayout(
     ];
   });
   if (statements.length > 0) {
+    statements.push(touchGraphStatement(db, graphId));
     await db.batch(statements);
-    await touchGraph(db, graphId);
   }
   return getGraphDetail(db, userId, graphId);
 }
@@ -267,35 +284,60 @@ export async function updateNode(
   if (input.height !== undefined && input.height !== null && !isValidNoteHeight(input.height)) {
     return { error: "invalid node height" };
   }
-  const next: NodeRecord = {
-    ...existing,
-    title: input.title !== undefined ? input.title.slice(0, QUOTA.maxTitleChars) : existing.title,
-    body: input.body ?? existing.body,
-    x: input.x ?? existing.x,
-    y: input.y ?? existing.y,
-    width: input.width === undefined ? existing.width : input.width,
-    height: input.height === undefined ? existing.height : input.height,
-    updated_at: nowIso(),
-  };
-  await db
-    .prepare(
-      `UPDATE nodes SET title = ?, body = ?, x = ?, y = ?, width = ?, height = ?, updated_at = ?
-       WHERE id = ? AND graph_id = ?`,
-    )
-    .bind(
-      next.title,
-      next.body,
-      next.x,
-      next.y,
-      next.width,
-      next.height,
-      next.updated_at,
-      nodeId,
-      graphId,
-    )
-    .run();
-  await touchGraph(db, graphId);
-  return next;
+  for (const key of ["x", "y"] as const) {
+    const value = input[key];
+    if (value !== undefined && (value === null || !Number.isFinite(value))) {
+      return { error: `${key} must be finite` };
+    }
+  }
+
+  // Update only the provided columns so a concurrent PATCH of other fields
+  // (e.g. a title commit racing a drag) is not rolled back by this write.
+  const sets: string[] = [];
+  const binds: (string | number | null)[] = [];
+  const next: NodeRecord = { ...existing };
+  if (input.title !== undefined) {
+    next.title = input.title.slice(0, QUOTA.maxTitleChars);
+    sets.push("title = ?");
+    binds.push(next.title);
+  }
+  if (input.body !== undefined) {
+    next.body = input.body;
+    sets.push("body = ?");
+    binds.push(next.body);
+  }
+  for (const key of ["x", "y"] as const) {
+    const value = input[key];
+    if (value !== undefined && value !== null) {
+      next[key] = value;
+      sets.push(`${key} = ?`);
+      binds.push(value);
+    }
+  }
+  for (const key of ["width", "height"] as const) {
+    const value = input[key];
+    if (value !== undefined) {
+      next[key] = value;
+      sets.push(`${key} = ?`);
+      binds.push(value);
+    }
+  }
+  if (sets.length === 0) return existing;
+  next.updated_at = nowIso();
+  sets.push("updated_at = ?");
+  binds.push(next.updated_at);
+  // RETURNING: the caller replaces its whole record with this response, so it
+  // must reflect concurrent writes to other columns, not the pre-read snapshot.
+  const results = await db.batch<NodeRecord>([
+    db
+      .prepare(
+        `UPDATE nodes SET ${sets.join(", ")} WHERE id = ? AND graph_id = ?
+         RETURNING id, graph_id, title, body, x, y, width, height, created_at, updated_at`,
+      )
+      .bind(...binds, nodeId, graphId),
+    touchGraphStatement(db, graphId),
+  ]);
+  return results[0]?.results?.[0] ?? next;
 }
 
 async function listEdges(db: D1Database, graphId: string): Promise<EdgeRecord[]> {
@@ -332,8 +374,23 @@ export async function deleteNodes(
   if (nodeIds.length === 0) {
     return { deletedNodeIds: [], deletedEdgeIds: [] };
   }
-  let targets = [...new Set(nodeIds)];
+  const requested = [...new Set(nodeIds)];
+  // D1 allows at most 100 bound parameters per statement.
+  let targets: string[] = [];
+  for (let i = 0; i < requested.length; i += 90) {
+    const chunk = requested.slice(i, i + 90);
+    const rows = await db
+      .prepare(
+        `SELECT id FROM nodes WHERE graph_id = ? AND id IN (${chunk.map(() => "?").join(", ")})`,
+      )
+      .bind(graphId, ...chunk)
+      .all<{ id: string }>();
+    targets = targets.concat((rows.results ?? []).map((row) => row.id));
+  }
   let edgeIds: string[] = [];
+  if (targets.length === 0) {
+    return { deletedNodeIds: [], deletedEdgeIds: [] };
+  }
   if (cascade) {
     const result = await cascadeSelect(db, userId, graphId, targets, "outgoing");
     if (!result) return null;
@@ -356,12 +413,12 @@ export async function deleteNodes(
     ...targets.map((id) =>
       db.prepare(`DELETE FROM nodes WHERE id = ? AND graph_id = ?`).bind(id, graphId),
     ),
+    touchGraphStatement(db, graphId),
   ];
-  if (statements.length > 0) {
-    await db.batch(statements);
-    await touchGraph(db, graphId);
-  }
-  return { deletedNodeIds: targets, deletedEdgeIds: edgeIds };
+  await db.batch(statements);
+  // Requested ids that no longer exist are reported as deleted too: the
+  // caller needs them gone from its canvas either way.
+  return { deletedNodeIds: [...new Set([...requested, ...targets])], deletedEdgeIds: edgeIds };
 }
 
 export async function createEdge(
@@ -369,10 +426,12 @@ export async function createEdge(
   userId: string,
   graphId: string,
   input: { source_id: string; target_id: string; label?: string },
-): Promise<EdgeRecord | null> {
+): Promise<EdgeRecord | { error: string } | null> {
   if (!(await ownedGraph(db, userId, graphId))) return null;
-  if (input.source_id === input.target_id) return null;
-  const [source, target] = await Promise.all([
+  if (input.source_id === input.target_id) {
+    return { error: "cannot link a node to itself" };
+  }
+  const [source, target, edgeCount] = await Promise.all([
     db
       .prepare(`SELECT id FROM nodes WHERE id = ? AND graph_id = ?`)
       .bind(input.source_id, graphId)
@@ -381,22 +440,35 @@ export async function createEdge(
       .prepare(`SELECT id FROM nodes WHERE id = ? AND graph_id = ?`)
       .bind(input.target_id, graphId)
       .first(),
+    db
+      .prepare(`SELECT COUNT(*) AS n FROM edges WHERE graph_id = ?`)
+      .bind(graphId)
+      .first<{ n: number }>(),
   ]);
-  if (!source || !target) return null;
+  if (!source || !target) return { error: "node not found" };
+  if ((edgeCount?.n ?? 0) >= QUOTA.maxEdgesPerGraph) {
+    return { error: `edge limit (${QUOTA.maxEdgesPerGraph})` };
+  }
   const id = crypto.randomUUID();
   const ts = nowIso();
   try {
-    await db
-      .prepare(
-        `INSERT INTO edges (id, graph_id, source_id, target_id, label, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(id, graphId, input.source_id, input.target_id, input.label ?? "", ts)
-      .run();
-  } catch {
-    return null;
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO edges (id, graph_id, source_id, target_id, label, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(id, graphId, input.source_id, input.target_id, input.label ?? "", ts),
+      touchGraphStatement(db, graphId),
+    ]);
+  } catch (err) {
+    // Only the UNIQUE(graph_id, source_id, target_id) violation is a client
+    // error; anything else (D1 outage, timeout) must surface as a 500.
+    if (err instanceof Error && err.message.includes("UNIQUE")) {
+      return { error: "nodes already linked" };
+    }
+    throw err;
   }
-  await touchGraph(db, graphId);
   return {
     id,
     graph_id: graphId,
@@ -419,7 +491,7 @@ export async function deleteEdge(
     .bind(edgeId, graphId)
     .run();
   if ((result.meta.changes ?? 0) > 0) {
-    await touchGraph(db, graphId);
+    await touchGraphStatement(db, graphId).run();
     return true;
   }
   return false;
@@ -436,6 +508,19 @@ export async function importGraph(
   }
   if (payload.nodes.length > QUOTA.maxNodesPerGraph) {
     return { error: `node limit (${QUOTA.maxNodesPerGraph})` };
+  }
+  if (payload.edges.length > QUOTA.maxEdgesPerGraph) {
+    return { error: `edge limit (${QUOTA.maxEdgesPerGraph})` };
+  }
+  if (payload.nodes.some((node) => !node || typeof node.id !== "string" || !node.id)) {
+    return { error: "invalid export payload" };
+  }
+  if (
+    payload.edges.some(
+      (edge) => !edge || typeof edge.source_id !== "string" || typeof edge.target_id !== "string",
+    )
+  ) {
+    return { error: "invalid export payload" };
   }
   if ((await countGraphs(db, userId)) >= QUOTA.maxGraphsPerUser) {
     return { error: `graph limit (${QUOTA.maxGraphsPerUser})` };
@@ -499,11 +584,4 @@ export async function importGraph(
   const detail = await getGraphDetail(db, userId, graphId);
   if (!detail) return { error: "import failed" };
   return detail;
-}
-
-export async function deleteAuthUser(db: D1Database, userId: string): Promise<void> {
-  await db.prepare(`DELETE FROM api_tokens WHERE user_id = ?`).bind(userId).run();
-  await db.prepare(`DELETE FROM session WHERE userId = ?`).bind(userId).run();
-  await db.prepare(`DELETE FROM account WHERE userId = ?`).bind(userId).run();
-  await db.prepare(`DELETE FROM user WHERE id = ?`).bind(userId).run();
 }

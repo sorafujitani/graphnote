@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "graphnote",
-  "workers_dev": true,
+  "workers_dev": false,
   "main": "./src/worker/index.ts",
   "compatibility_date": "2025-10-08",
   "compatibility_flags": ["nodejs_compat"],
@@ -28,6 +28,9 @@
       "bucket_name": "graphnote-exports"
     }
   ],
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  },
   "vars": {
     "BETTER_AUTH_URL": "https://graphnote.app"
   },
