@@ -174,6 +174,9 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
               });
             }}
           >
+            {/* onSelectionDragStop is intentionally NOT wired: React Flow
+                already calls onNodeDragStop with all dragged nodes for a
+                selection-rect drag, so wiring both would double every PATCH. */}
             <NoteActionsProvider value={noteActions}>
               <ReactFlow
                 nodes={state.nodes}
@@ -187,7 +190,10 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
                 connectionRadius={45}
                 nodeDragThreshold={4}
                 nodeClickDistance={4}
-                onNodeDragStop={(event, node) => void actions.onNodeDragStop(event, node)}
+                onNodeDragStart={actions.onNodeDragStart}
+                onNodeDragStop={(event, node, nodes) =>
+                  void actions.onNodeDragStop(event, node, nodes)
+                }
                 onNodeMouseEnter={(_, node) => actions.onNodeMouseEnter(node.id)}
                 onNodeMouseLeave={(_, node) => actions.onNodeMouseLeave(node.id)}
                 onNodeClick={(_, node) => actions.focusParent(node.id)}
@@ -215,14 +221,31 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
               </ReactFlow>
             </NoteActionsProvider>
           </div>
-          {state.error ? (
-            <p
-              role="status"
-              className="panel pointer-events-none absolute top-4 left-1/2 z-10 m-0 max-w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 px-4 py-3 text-sm text-danger shadow-lg"
-            >
-              {state.error}
-            </p>
-          ) : null}
+          {/* Stacked, click-through container: only the dismiss button takes
+              pointer events, so a lingering toast never blocks the canvas. */}
+          <div className="pointer-events-none absolute top-4 left-1/2 z-10 flex w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 flex-col gap-2">
+            {state.error ? (
+              <div
+                role="alert"
+                className="panel flex items-start gap-3 px-4 py-3 text-sm text-danger shadow-lg"
+              >
+                <p className="m-0 min-w-0 flex-1">{state.error}</p>
+                <button
+                  type="button"
+                  className="btn btn-ghost pointer-events-auto -my-1 px-2 py-1"
+                  aria-label="エラーを閉じる"
+                  onClick={actions.dismissError}
+                >
+                  ×
+                </button>
+              </div>
+            ) : null}
+            {state.notice ? (
+              <p role="status" className="panel m-0 px-4 py-3 text-sm shadow-lg">
+                {state.notice}
+              </p>
+            ) : null}
+          </div>
         </div>
         <NodeInspector node={selectedNode} />
       </div>

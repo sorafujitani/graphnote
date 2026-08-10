@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { AppMenu } from "../components/AppMenu";
 import type { GraphListController } from "../logic/useGraphList";
 
@@ -22,6 +23,7 @@ export function GraphListView({
   onDeleteAccount,
 }: Props) {
   const { state, actions } = controller;
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className="h-full min-h-screen p-6">
@@ -86,9 +88,31 @@ export function GraphListView({
             onChange={(event) => actions.setTitle(event.target.value)}
           />
         </label>
-        <button className="btn btn-accent" type="submit">
-          ノートを作る
-        </button>
+        <div className="flex gap-2">
+          <button className="btn btn-accent" type="submit" disabled={state.busy}>
+            ノートを作る
+          </button>
+          <button
+            className="btn btn-secondary"
+            type="button"
+            disabled={state.busy}
+            onClick={() => importInputRef.current?.click()}
+          >
+            ファイルから復元
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            aria-label="ダウンロードしたノートのファイルを選ぶ"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void actions.onImportFile(file);
+            }}
+          />
+        </div>
       </form>
 
       {state.error ? <p className="m-0 text-danger">{state.error}</p> : null}

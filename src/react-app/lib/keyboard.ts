@@ -5,6 +5,19 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
+/**
+ * Buttons, links and menus own Enter/Space/Tab; canvas shortcuts must leave
+ * them alone or the keyboard can never activate or escape them.
+ */
+export function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return (
+    target.closest(
+      "button, a[href], select, [role='menu'], [role='menuitem'], [role='dialog'], [role='separator']",
+    ) !== null
+  );
+}
+
 export function nearestNodeId(
   nodes: { id: string; x: number; y: number }[],
   fromId: string,

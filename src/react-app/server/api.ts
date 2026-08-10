@@ -32,6 +32,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const data = (await res.json().catch(() => null)) as {
       error?: string;
     } | null;
+    // A 401 means the session is gone; the app returns to the login screen
+    // instead of leaving the user on an editor where nothing saves.
+    if (res.status === 401 && path !== "/api/me") {
+      window.dispatchEvent(new CustomEvent("graphnote:unauthorized"));
+    }
     throw new ApiError(res.status, data?.error ?? res.statusText);
   }
   return res.json() as Promise<T>;

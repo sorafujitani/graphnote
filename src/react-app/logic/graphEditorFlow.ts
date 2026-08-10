@@ -31,6 +31,25 @@ export function presentEdges(edges: EdgeRecord[], selectedEdgeIds: Set<string>):
   });
 }
 
+type NoteData = AppNode["data"];
+
+function sameData(a: NoteData, b: NoteData): boolean {
+  return (
+    a.title === b.title &&
+    a.body === b.body &&
+    a.manuallySized === b.manuallySized &&
+    a.activeParent === b.activeParent &&
+    a.editRequest?.nonce === b.editRequest?.nonce &&
+    a.editRequest?.field === b.editRequest?.field
+  );
+}
+
+/**
+ * Patches the previous React Flow nodes instead of rebuilding them. React Flow
+ * compares node references (`checkEquality` in `adoptUserNodes`); a rebuilt
+ * object drops `measured`/`handleBounds` and forces every card through a
+ * re-measure, which is why edges used to flicker on hover.
+ */
 export function presentNodes(
   records: NodeRecord[],
   selectedIds: string[],
@@ -39,21 +58,19 @@ export function presentNodes(
   previousNodes: AppNode[],
 ): AppNode[] {
   const selectedSet = new Set(selectedIds);
-  const previousPositions = new Map(previousNodes.map((node) => [node.id, node.position] as const));
-  return records.map((node) => ({
-    id: node.id,
-    type: "note" as const,
-    position: previousPositions.get(node.id) ?? { x: node.x, y: node.y },
-    ...(node.width === null && node.height === null
-      ? {}
-      : {
-          style: {
+  const prevById = new Map(previousNodes.map((node) => [node.id, node] as const));
+  let changed = previousNodes.length !== records.length;
+  const next = records.map((node, index) => {
+    const prev = prevById.get(node.id);
+    const selected = selectedSet.has(node.id);
+    const style =
+      node.width === null && node.height === null
+        ? undefined
+        : {
             ...(node.width === null ? {} : { width: node.width }),
             ...(node.height === null ? {} : { height: node.height }),
-          },
-        }),
-    selected: selectedSet.has(node.id),
-    data: {
+          };
+    const data: NoteData = {
       title: node.title,
       body: node.body,
       manuallySized: node.width !== null || node.height !== null,
@@ -61,6 +78,29 @@ export function presentNodes(
       ...(editRequest?.nodeId === node.id
         ? { editRequest: { field: editRequest.field, nonce: editRequest.nonce } }
         : {}),
-    },
-  }));
+    };
+    if (
+      prev &&
+      prev.selected === selected &&
+      sameData(prev.data, data) &&
+      prev.style?.width === style?.width &&
+      prev.style?.height === style?.height
+    ) {
+      if (previousNodes[index] !== prev) changed = true;
+      return prev;
+    }
+    changed = true;
+    const patched: AppNode = {
+      ...(prev ?? { id: node.id, type: "note" as const }),
+      position: prev?.position ?? { x: node.x, y: node.y },
+      selected,
+      data,
+    };
+    // Replace, not merge: a dimension reset to null must not leave the old
+    // width/height behind in the style object.
+    if (style) patched.style = style;
+    else delete patched.style;
+    return patched;
+  });
+  return changed ? next : previousNodes;
 }

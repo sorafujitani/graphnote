@@ -77,20 +77,20 @@ Each **note** has a **title** (label) and **body** (Markdown). Use **Arrange** (
 | Drag a note's side  | Link it to another note; drop anywhere on the card |
 | Double-click canvas | New note where you clicked                         |
 
-| Key          | Action                                 |
-| ------------ | -------------------------------------- |
-| `F` / arrows | Focus a note                           |
-| `Tab`        | Add a linked note from the focused one |
-| `N`          | Add a standalone note                  |
-| `Enter`      | Edit title → body                      |
-| `L`          | Link two selected notes                |
-| `C`          | Select branch                          |
-| `⌫` / `⇧⌫`   | Delete / delete branch                 |
-| `⇧` + arrows | Nudge selection                        |
-| `A`          | **Arrange** — tidy canvas layout       |
-| `⌘E`         | Download backup                        |
-| `⌘[`         | Back to notes list                     |
-| `Esc`        | Clear focus / cancel                   |
+| Key          | Action                                           |
+| ------------ | ------------------------------------------------ |
+| `F` / arrows | Focus a note                                     |
+| `Tab`        | Add a linked note from the focused one           |
+| `N`          | Add a standalone note                            |
+| `Enter`      | Edit title → body                                |
+| `L`          | Link two selected notes                          |
+| `C`          | Select branch                                    |
+| `⌫` / `⇧⌫`   | Delete / delete branch                           |
+| `⇧` + arrows | Nudge selection                                  |
+| `A`          | **Arrange** — tidy canvas layout                 |
+| `⌘E`         | Download backup (restore it from the notes list) |
+| `⌘[`         | Back to notes list                               |
+| `Esc`        | Clear focus / cancel                             |
 
 ## Install (`gqn` CLI + agent skills)
 
@@ -138,9 +138,11 @@ gqn graphs import ./note.json
 | ------------------- | ----: |
 | Notes / user        |    50 |
 | Cards / note        |   500 |
+| Links / note        |  1000 |
 | Body chars / card   | 32768 |
 | Access keys / user  |    10 |
 | Backups kept / note |     5 |
+| Exports / hour      |    30 |
 
 ## Deploy
 

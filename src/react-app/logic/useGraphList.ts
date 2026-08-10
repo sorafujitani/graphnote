@@ -1,6 +1,6 @@
-import { useEffect, useEffectEvent, useState, type FormEvent } from "react";
-import type { Graph } from "../../shared/types";
-import { isEditableTarget } from "../lib/keyboard";
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react";
+import type { Graph, GraphExport } from "../../shared/types";
+import { isEditableTarget, isInteractiveTarget } from "../lib/keyboard";
 import { userMessage } from "../lib/userMessage";
 import { api } from "../server/api";
 
@@ -13,7 +13,22 @@ export function useGraphList({ onOpen }: UseGraphListOptions) {
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const busyRef = useRef(false);
+
+  /** One in-flight mutation at a time: Enter held on 作成 must not make two notes. */
+  async function withBusy(work: () => Promise<void>) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await work();
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
 
   async function refresh(signal?: AbortSignal) {
     setLoading(true);
@@ -41,23 +56,49 @@ export function useGraphList({ onOpen }: UseGraphListOptions) {
 
   async function onCreate(event?: FormEvent) {
     event?.preventDefault();
-    try {
-      const detail = await api.createGraph(title.trim() || "タイトルなしのノート");
-      setTitle("");
-      onOpen(detail.graph.id);
-    } catch (err) {
-      setError(userMessage(err, "ノートを作成できませんでした。もう一度お試しください。"));
-    }
+    await withBusy(async () => {
+      try {
+        const detail = await api.createGraph(title.trim() || "タイトルなしのノート");
+        setTitle("");
+        onOpen(detail.graph.id);
+      } catch (err) {
+        setError(userMessage(err, "ノートを作成できませんでした。もう一度お試しください。"));
+      }
+    });
   }
 
   async function onDelete(graphId: string) {
     if (!confirm("このノートと、中にあるすべてのノードを削除しますか？")) return;
-    try {
-      await api.deleteGraph(graphId);
-      await refresh();
-    } catch (err) {
-      setError(userMessage(err, "ノートを削除できませんでした。もう一度お試しください。"));
-    }
+    await withBusy(async () => {
+      try {
+        await api.deleteGraph(graphId);
+        await refresh();
+      } catch (err) {
+        setError(userMessage(err, "ノートを削除できませんでした。もう一度お試しください。"));
+      }
+    });
+  }
+
+  async function onImportFile(file: File) {
+    await withBusy(async () => {
+      setError(null);
+      try {
+        const text = await file.text();
+        let payload: GraphExport;
+        try {
+          payload = JSON.parse(text) as GraphExport;
+        } catch {
+          setError("ダウンロードファイルの内容を確認できませんでした。");
+          return;
+        }
+        const detail = await api.importGraph(payload);
+        onOpen(detail.graph.id);
+      } catch (err) {
+        setError(
+          userMessage(err, "読み込めませんでした。ファイルを確認してもう一度お試しください。"),
+        );
+      }
+    });
   }
 
   const onListKeyDown = useEffectEvent((event: globalThis.KeyboardEvent) => {
@@ -65,6 +106,11 @@ export function useGraphList({ onOpen }: UseGraphListOptions) {
       if (event.key === "Escape") {
         (document.activeElement as HTMLElement | null)?.blur();
       }
+      return;
+    }
+    // Enter on a focused button (menu, delete, a note row) must press that
+    // button, not act on whichever row happens to be highlighted.
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && isInteractiveTarget(event.target)) {
       return;
     }
     if (event.key === "n") {
@@ -103,8 +149,8 @@ export function useGraphList({ onOpen }: UseGraphListOptions) {
   }, []);
 
   return {
-    state: { graphs, title, error, loading, activeIndex },
-    actions: { setTitle, setActiveIndex, onCreate, onDelete },
+    state: { graphs, title, error, loading, busy, activeIndex },
+    actions: { setTitle, setActiveIndex, onCreate, onDelete, onImportFile },
   };
 }
 

@@ -32,9 +32,21 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
   const [editingBody, setEditingBody] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [scrollable, setScrollable] = useState(false);
   const titleComposingRef = useRef(false);
   const handledEditRef = useRef(0);
   const active = selected || data.activeParent;
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const check = () => setScrollable(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [data.title, data.body, data.manuallySized]);
 
   // `N`, `Tab` and `Enter` on the canvas open an editor by asking through node
   // data instead of reaching into the DOM for the field.
@@ -91,9 +103,10 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
     event.stopPropagation();
     commitTitle();
     commitBody();
+    // Closing the editors unmounts the textareas without firing their onBlur,
+    // so the commits above stay the only PATCH for this edit.
     setEditingTitle(false);
     setEditingBody(false);
-    (event.target as HTMLElement).blur();
     onRequestChild(id);
   }
 
@@ -129,9 +142,12 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
       return;
     }
     event.stopPropagation();
+    // Escape cancels like the title editor; committing here would turn an
+    // intended undo into a save.
     if (event.key === "Escape") {
       event.preventDefault();
-      finishBodyEdit();
+      setBody(data.body);
+      setEditingBody(false);
       return;
     }
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -154,8 +170,14 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
         onResizeEnd={(_, size) => onResize(id, size)}
       />
       {data.activeParent ? <div className="note-parent-badge">Tabで子ノード</div> : null}
+      {/* `nowheel` only while the card actually overflows: React Flow zooms on
+          wheel unless the target opts out, and an always-on opt-out would kill
+          zooming over every card. */}
       <div
-        className={`note-card${active ? " is-active" : ""}${data.activeParent && !selected ? " is-parent" : ""}`}
+        ref={cardRef}
+        className={`note-card${active ? " is-active" : ""}${data.activeParent && !selected ? " is-parent" : ""}${
+          scrollable ? " nowheel" : ""
+        }`}
       >
         {editingTitle ? (
           <textarea

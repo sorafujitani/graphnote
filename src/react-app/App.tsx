@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ApiError, api } from "./server/api";
 import { authClient } from "./server/auth";
+import { userMessage } from "./lib/userMessage";
 import { navigate, parseRoute, type AppRoute } from "./lib/routing";
 import { GraphEditor } from "./pages/GraphEditor";
 import { GraphList } from "./pages/GraphList";
@@ -36,6 +37,19 @@ export default function App() {
         setScreen({ name: "login" });
       });
     return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    function onUnauthorized() {
+      // The URL is left as-is so the deep link survives a re-login.
+      setScreen((prev) =>
+        prev.name === "terms" || prev.name === "privacy" || prev.name === "login"
+          ? prev
+          : { name: "login" },
+      );
+    }
+    window.addEventListener("graphnote:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("graphnote:unauthorized", onUnauthorized);
   }, []);
 
   useEffect(() => {
@@ -129,7 +143,13 @@ export default function App() {
         try {
           await api.deleteAccount();
         } catch (error) {
-          if (!(error instanceof ApiError)) throw error;
+          // Logging out here would make a failed deletion look like it worked.
+          const detail =
+            error instanceof ApiError
+              ? userMessage(error, "アカウントを削除できませんでした。")
+              : "アカウントを削除できませんでした。";
+          alert(`${detail} データはまだ残っています。もう一度お試しください。`);
+          return;
         }
         await logout();
       }}

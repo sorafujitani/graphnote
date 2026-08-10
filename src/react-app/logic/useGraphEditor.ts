@@ -22,7 +22,7 @@ import type { EdgeRecord, Graph, NodeRecord } from "../../shared/types";
 import { estimateNoteHeight } from "../../shared/estimateNoteHeight";
 import { placeChildPosition } from "../../shared/placeChild";
 import { reflowAroundNode } from "../../shared/reflowTree";
-import { isEditableTarget, nearestNodeId } from "../lib/keyboard";
+import { isEditableTarget, isInteractiveTarget, nearestNodeId } from "../lib/keyboard";
 import { userMessage } from "../lib/userMessage";
 import { ApiError, api } from "../server/api";
 import { presentEdges, presentNodes } from "./graphEditorFlow";
@@ -58,13 +58,28 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const [linkSourceId, setLinkSourceId] = useState<string | null>(null);
   const [editRequest, setEditRequest] = useState<EditRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+
+  const noticeTimerRef = useRef<number | null>(null);
+  const showNotice = useCallback((message: string) => {
+    setNotice(message);
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = window.setTimeout(() => setNotice(null), 4000);
+  }, []);
+  useEffect(
+    () => () => {
+      if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    },
+    [],
+  );
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const flowRef = useRef<ReactFlowInstance<AppNode, Edge> | null>(null);
   const updateInternalsRef = useRef<((ids: string[]) => void) | null>(null);
   const creatingChildRef = useRef(false);
+  const cascadeSelectingRef = useRef(false);
 
   const selectedNodeIdsRef = useRef(selectedNodeIds);
   const selectedEdgeIdsRef = useRef(selectedEdgeIds);
@@ -106,6 +121,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
 
   const persistNode = useCallback(
     (nodeId: string, patch: { title?: string; body?: string }) => {
+      const before = nodeRecordsRef.current.find((item) => item.id === nodeId);
       setNodeRecords((prev) =>
         prev.map((item) =>
           item.id === nodeId
@@ -123,6 +139,15 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
           setNodeRecords((prev) => prev.map((item) => (item.id === node.id ? node : item)));
         })
         .catch((err) => {
+          // Roll the optimistic edit back: leaving unsaved text on screen makes
+          // a permanent failure (e.g. body over the size limit) look saved.
+          if (before) {
+            setNodeRecords((prev) =>
+              prev.map((item) =>
+                item.id === nodeId ? { ...item, title: before.title, body: before.body } : item,
+              ),
+            );
+          }
           setError(userMessage(err, "ノードを保存できませんでした。もう一度お試しください。"));
         });
     },
@@ -234,13 +259,13 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     });
   }, []);
 
+  // Synchronous on purpose: Delete right after a rubber-band selection reads
+  // these ids from refs, and a deferred commit would still hold the old set.
   const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
     const ids = params.nodes.map((node) => node.id);
     const edgeIds = params.edges.map((edge) => edge.id);
-    startTransition(() => {
-      setSelectedNodeIds(ids);
-      setSelectedEdgeIds(edgeIds);
-    });
+    setSelectedNodeIds(ids);
+    setSelectedEdgeIds(edgeIds);
   }, []);
 
   // Generous drop targets mean self-drops and repeats are easy; reject them here
@@ -332,23 +357,32 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         );
 
         if (parent) {
-          const { edge } = await api.createEdge(graphId, {
-            source_id: parent.id,
-            target_id: node.id,
-          });
-          if (!edge) {
-            if (opts?.requireParent) {
-              await api.deleteNodes(graphId, [node.id], false);
-              setNodeRecords((prev) => prev.filter((item) => item.id !== node.id));
-              setError("子ノードをつなげませんでした。もう一度お試しください。");
-              return null;
-            }
-          } else {
+          try {
+            const { edge } = await api.createEdge(graphId, {
+              source_id: parent.id,
+              target_id: node.id,
+            });
             setEdgeRecords((prev) =>
               prev.some((item) => item.id === edge.id) ? prev : [...prev, edge],
             );
             await waitFrames(1);
             updateInternalsRef.current?.([parent.id, node.id]);
+          } catch (err) {
+            // Tab/child path must never leave an unlinked node behind.
+            if (opts?.requireParent) {
+              let cleaned = true;
+              await api.deleteNodes(graphId, [node.id], false).catch(() => {
+                cleaned = false;
+              });
+              // Drop the local record only when the server dropped it too;
+              // otherwise the canvas would hide a node that still exists.
+              if (cleaned) {
+                setNodeRecords((prev) => prev.filter((item) => item.id !== node.id));
+              }
+              setError(userMessage(err, "子ノードをつなげませんでした。もう一度お試しください。"));
+              return null;
+            }
+            setError(userMessage(err, "ノードをつなげませんでした。もう一度お試しください。"));
           }
         } else if (opts?.requireParent) {
           await api.deleteNodes(graphId, [node.id], false);
@@ -390,12 +424,23 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
 
   const onDeleteSelection = useCallback(
     async (cascade: boolean) => {
+      if (busyRef.current) return;
       const selected = selectedNodeIdsRef.current;
       const edgeIds = selectedEdgeIdsRef.current;
       // A selected connection wins over a selected card. This makes Delete and
       // the toolbar safe even if React Flow briefly keeps both selected.
       const ids = !cascade && edgeIds.length > 0 ? [] : selected;
       if (ids.length === 0 && edgeIds.length === 0) return;
+      // There is no undo; removing a whole branch needs explicit consent.
+      // Only when nodes are actually part of the deletion — an edge-only
+      // selection must not show a branch warning.
+      if (
+        cascade &&
+        ids.length > 0 &&
+        !window.confirm("選択したノードを下位ノードごと削除しますか？この操作は元に戻せません。")
+      ) {
+        return;
+      }
       setBusy(true);
       setError(null);
       try {
@@ -407,7 +452,9 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
           setNodeRecords((prev) => prev.filter((node) => !deletedNodes.has(node.id)));
         }
         const remainingEdgeIds = edgeIds.filter((edgeId) => !removedEdgeIds.has(edgeId));
-        const deletedEdgeIds = await Promise.all(
+        // Apply every edge that did get deleted even when another one fails,
+        // or the canvas keeps lines the server no longer has.
+        const settled = await Promise.allSettled(
           remainingEdgeIds.map(async (edgeId) => {
             try {
               await api.deleteEdge(graphId, edgeId);
@@ -417,11 +464,21 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
             return edgeId;
           }),
         );
-        for (const edgeId of deletedEdgeIds) {
-          removedEdgeIds.add(edgeId);
+        let edgeFailure: unknown = null;
+        for (const outcome of settled) {
+          if (outcome.status === "fulfilled") removedEdgeIds.add(outcome.value);
+          else edgeFailure = outcome.reason;
         }
         if (removedEdgeIds.size > 0) {
           setEdgeRecords((prev) => prev.filter((edge) => !removedEdgeIds.has(edge.id)));
+        }
+        if (edgeFailure) {
+          setError(
+            userMessage(
+              edgeFailure,
+              "一部のつながりを削除できませんでした。もう一度お試しください。",
+            ),
+          );
         }
         selectNodes([]);
         setLinkSourceId(null);
@@ -448,14 +505,15 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       a.href = url;
       a.download = `${payload.graph.title || "graphnote"}.json`;
       a.click();
-      URL.revokeObjectURL(url);
-      alert("ダウンロードしました。アカウントにもコピーを保存しています。");
+      // Revoking synchronously can cancel the download in some browsers.
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      showNotice("ダウンロードしました。アカウントにもコピーを保存しています。");
     } catch (err) {
       setError(userMessage(err, "ダウンロードできませんでした。もう一度お試しください。"));
     } finally {
       setBusy(false);
     }
-  }, [graphId]);
+  }, [graphId, showNotice]);
 
   const onFmt = useCallback(async () => {
     if (nodeRecordsRef.current.length === 0 || busyRef.current) return;
@@ -482,14 +540,71 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     }
   }, [graphId, revealNodes]);
 
+  // Nudges land per keystroke locally but reach the server once per pause:
+  // a held arrow key must not turn into hundreds of PATCHes racing the
+  // write rate limit. Originals are kept so a failed flush can roll back.
+  const pendingNudgeRef = useRef<Map<string, { x: number; y: number }> | null>(null);
+  const nudgeTimerRef = useRef<number | null>(null);
+
+  const flushNudge = useCallback(async () => {
+    if (nudgeTimerRef.current) {
+      window.clearTimeout(nudgeTimerRef.current);
+      nudgeTimerRef.current = null;
+    }
+    const originals = pendingNudgeRef.current;
+    pendingNudgeRef.current = null;
+    if (!originals || originals.size === 0) return;
+    const targets = nodeRecordsRef.current.filter((node) => originals.has(node.id));
+    const settled = await Promise.allSettled(
+      targets.map((node) => api.updateNode(graphId, node.id, { x: node.x, y: node.y })),
+    );
+    const saved = new Map<string, NodeRecord>();
+    const revert = new Map<string, { x: number; y: number }>();
+    let failure: unknown = null;
+    settled.forEach((outcome, index) => {
+      const target = targets[index] as NodeRecord;
+      if (outcome.status === "fulfilled") {
+        saved.set(outcome.value.node.id, outcome.value.node);
+      } else {
+        failure = outcome.reason;
+        const original = originals.get(target.id);
+        if (original) revert.set(target.id, original);
+      }
+    });
+    setNodeRecords((prev) =>
+      prev.map((node) => {
+        const record = saved.get(node.id);
+        if (record) return record;
+        const original = revert.get(node.id);
+        return original ? { ...node, ...original } : node;
+      }),
+    );
+    if (revert.size > 0) {
+      setNodes((prev) =>
+        prev.map((node) => {
+          const original = revert.get(node.id);
+          return original ? { ...node, position: { ...original } } : node;
+        }),
+      );
+    }
+    if (failure) {
+      setError(
+        userMessage(failure, "ノードの位置を保存できませんでした。もう一度お試しください。"),
+      );
+    }
+  }, [graphId]);
+
   const nudgeSelected = useCallback(
-    async (dx: number, dy: number) => {
+    (dx: number, dy: number) => {
       const ids = selectedNodeIdsRef.current;
       if (ids.length === 0) return;
       const selectedIds = new Set(ids);
+      pendingNudgeRef.current ??= new Map();
+      const originals = pendingNudgeRef.current;
       const updates = new Map<string, NodeRecord>();
       for (const node of nodeRecordsRef.current) {
         if (!selectedIds.has(node.id)) continue;
+        if (!originals.has(node.id)) originals.set(node.id, { x: node.x, y: node.y });
         updates.set(node.id, { ...node, x: node.x + dx, y: node.y + dy });
       }
       setNodeRecords((prev) => prev.map((node) => updates.get(node.id) ?? node));
@@ -499,13 +614,19 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
           return next ? { ...node, position: { x: next.x, y: next.y } } : node;
         }),
       );
-      await Promise.all(
-        [...updates.values()].map((node) =>
-          api.updateNode(graphId, node.id, { x: node.x, y: node.y }),
-        ),
-      );
+      if (nudgeTimerRef.current) window.clearTimeout(nudgeTimerRef.current);
+      nudgeTimerRef.current = window.setTimeout(() => {
+        void flushNudge();
+      }, 300);
     },
-    [graphId],
+    [flushNudge],
+  );
+
+  useEffect(
+    () => () => {
+      void flushNudge();
+    },
+    [flushNudge],
   );
 
   const onCanvasKeyDown = useEffectEvent((event: KeyboardEvent) => {
@@ -521,6 +642,21 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         canvasRef.current?.focus();
       }
       return;
+    }
+
+    // A focused button/menu owns its activation keys (Tab/Enter/Space) and a
+    // separator owns the arrows — hijacking those would trap the keyboard
+    // (WCAG 2.1.2). Other shortcuts (N, A, Delete…) stay global on purpose.
+    const target = event.target;
+    if (isInteractiveTarget(target)) {
+      if (event.key === "Tab" || event.key === "Enter" || event.key === " ") return;
+      if (
+        event.key.startsWith("Arrow") &&
+        target instanceof Element &&
+        target.closest("[role='separator'], [role='menu'], [role='menuitem'], select")
+      ) {
+        return;
+      }
     }
 
     if (event.key === "Escape") {
@@ -555,9 +691,40 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       return;
     }
 
-    if (event.key === "Tab") {
+    // Shift+Tab keeps its browser meaning so focus can always move backwards.
+    if (event.key === "Tab" && !event.shiftKey) {
       event.preventDefault();
       void addChildFromActiveParent();
+      return;
+    }
+    if (event.key === "Tab") return;
+
+    if (key === "c" && !mod) {
+      event.preventDefault();
+      // POST counts against the write rate limit; holding the key must not
+      // stack requests (same reason nudges are debounced).
+      if (event.repeat || cascadeSelectingRef.current) return;
+      const seed = selectedNodeIdsRef.current.length
+        ? selectedNodeIdsRef.current
+        : currentParentId()
+          ? [currentParentId() as string]
+          : [];
+      if (seed.length === 0) {
+        setError("先にノードを選んでください。");
+        return;
+      }
+      cascadeSelectingRef.current = true;
+      void api
+        .cascadeSelect(graphId, seed)
+        .then((result) => {
+          selectNodes(result.nodeIds);
+        })
+        .catch((err) => {
+          setError(userMessage(err, "下位ノードを選択できませんでした。もう一度お試しください。"));
+        })
+        .finally(() => {
+          cascadeSelectingRef.current = false;
+        });
       return;
     }
 
@@ -662,7 +829,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         if (!selectedNodeIdsRef.current.includes(current)) {
           selectNodes([current]);
         }
-        void nudgeSelected(dx, dy);
+        nudgeSelected(dx, dy);
         return;
       }
 
@@ -694,17 +861,67 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     return () => window.removeEventListener("keydown", onCanvasKeyDown, true);
   }, []);
 
-  async function onNodeDragStop(_: unknown, node: AppNode) {
-    try {
-      const updated = await api.updateNode(graphId, node.id, {
-        x: node.position.x,
-        y: node.position.y,
-      });
-      setNodeRecords((prev) =>
-        prev.map((item) => (item.id === updated.node.id ? updated.node : item)),
+  // Positions as they were when the drag began, for rollback on a failed save.
+  const dragStartPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+
+  function onNodeDragStart(_: unknown, _node: AppNode, draggedNodes: AppNode[]) {
+    dragStartPositionsRef.current = new Map(
+      draggedNodes.map((item) => [item.id, { ...item.position }]),
+    );
+  }
+
+  // React Flow passes every dragged node as the third argument; saving only
+  // the grabbed one silently loses the rest of a multi-selection drag.
+  async function onNodeDragStop(_: unknown, node: AppNode, draggedNodes?: AppNode[]) {
+    const dragged = draggedNodes?.length ? draggedNodes : [node];
+    // Capture now: another drag can replace the ref while the PATCHes run.
+    const startPositions = new Map(
+      dragged.map((item) => [
+        item.id,
+        dragStartPositionsRef.current.get(item.id) ?? { ...item.position },
+      ]),
+    );
+    const settled = await Promise.allSettled(
+      dragged.map((item) =>
+        api.updateNode(graphId, item.id, { x: item.position.x, y: item.position.y }),
+      ),
+    );
+    const saved = new Map<string, NodeRecord>();
+    const failedIds: string[] = [];
+    let failure: unknown = null;
+    settled.forEach((outcome, index) => {
+      if (outcome.status === "fulfilled") {
+        saved.set(outcome.value.node.id, outcome.value.node);
+      } else {
+        failedIds.push((dragged[index] as AppNode).id);
+        failure = outcome.reason;
+      }
+    });
+    // Only failed nodes roll back; the rest ARE saved server-side and
+    // reverting them would desync the canvas from the database.
+    const revert = new Map(
+      failedIds.map((id) => [id, startPositions.get(id)] as const).filter(([, v]) => v),
+    );
+    setNodeRecords((prev) =>
+      prev.map((item) => {
+        const record = saved.get(item.id);
+        if (record) return record;
+        const start = revert.get(item.id);
+        return start ? { ...item, ...start } : item;
+      }),
+    );
+    if (revert.size > 0) {
+      setNodes((prev) =>
+        prev.map((item) => {
+          const start = revert.get(item.id);
+          return start ? { ...item, position: { ...start } } : item;
+        }),
       );
-    } catch (err) {
-      setError(userMessage(err, "ノードの位置を保存できませんでした。もう一度お試しください。"));
+    }
+    if (failure) {
+      setError(
+        userMessage(failure, "ノードの位置を保存できませんでした。もう一度お試しください。"),
+      );
     }
   }
 
@@ -717,17 +934,25 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         height: Math.round(size.height),
       };
       // A hand-resized card must not bury its neighbours; slide them clear instead.
+      const before = nodeRecordsRef.current.find((node) => node.id === nodeId);
       const moved = reflowAroundNode(
         nodeRecordsRef.current.map((node) => {
           const record = node.id === nodeId ? { ...node, ...patch } : node;
           return {
             id: record.id,
+            x: record.x,
+            width: record.width,
             y: record.y,
             height: record.height ?? estimateNoteHeight(record.title, record.body),
           };
         }),
         edgeRecordsRef.current,
         nodeId,
+        undefined,
+        before && {
+          y: before.y,
+          height: before.height ?? estimateNoteHeight(before.title, before.body),
+        },
       );
       setNodeRecords((previous) =>
         previous.map((node) => {
@@ -751,31 +976,81 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
           return y === undefined ? node : { ...node, position: { x: node.position.x, y } };
         }),
       );
-      void Promise.all([
-        api.updateNode(graphId, nodeId, patch),
-        ...[...moved].map(([id, y]) => api.updateNode(graphId, id, { y })),
-      ])
-        .then((results) => {
-          const saved = new Map(results.map(({ node }) => [node.id, node]));
-          setNodeRecords((previous) => previous.map((node) => saved.get(node.id) ?? node));
-          updateInternalsRef.current?.([...saved.keys()]);
-        })
-        .catch((err) => {
-          setError(
-            userMessage(err, "ノードの大きさを保存できませんでした。もう一度お試しください。"),
-          );
+      const originals = new Map(
+        nodeRecordsRef.current
+          .filter((node) => node.id === nodeId || moved.has(node.id))
+          .map((node) => [node.id, node]),
+      );
+      const patchTargets: Array<{ id: string; request: Promise<{ node: NodeRecord }> }> = [
+        { id: nodeId, request: api.updateNode(graphId, nodeId, patch) },
+        ...[...moved].map(([id, y]) => ({ id, request: api.updateNode(graphId, id, { y }) })),
+      ];
+      void Promise.allSettled(patchTargets.map((target) => target.request)).then((settled) => {
+        const saved = new Map<string, NodeRecord>();
+        const revert = new Map<string, NodeRecord>();
+        let failure: unknown = null;
+        settled.forEach((outcome, index) => {
+          const id = (patchTargets[index] as { id: string }).id;
+          if (outcome.status === "fulfilled") {
+            saved.set(outcome.value.node.id, outcome.value.node);
+          } else {
+            failure = outcome.reason;
+            const original = originals.get(id);
+            if (original) revert.set(id, original);
+          }
         });
+        // Failed writes roll back; successful ones must stay — they are
+        // already persisted server-side.
+        setNodeRecords((previous) =>
+          previous.map((node) => saved.get(node.id) ?? revert.get(node.id) ?? node),
+        );
+        if (revert.size > 0) {
+          setNodes((previous) =>
+            previous.map((node) => {
+              const original = revert.get(node.id);
+              if (!original) return node;
+              const restored = {
+                ...node,
+                position: { x: original.x, y: original.y },
+              };
+              if (node.id === nodeId) {
+                restored.width = original.width ?? undefined;
+                restored.height = original.height ?? undefined;
+                restored.style = {
+                  ...node.style,
+                  width: original.width ?? undefined,
+                  height: original.height ?? undefined,
+                };
+              }
+              return restored;
+            }),
+          );
+        }
+        if (saved.size > 0) updateInternalsRef.current?.([...saved.keys()]);
+        if (failure) {
+          setError(
+            userMessage(failure, "ノードの大きさを保存できませんでした。もう一度お試しください。"),
+          );
+        }
+      });
     },
     [graphId],
   );
 
   async function onRenameGraph() {
     const title = titleDraft.trim();
-    if (!title) return;
+    if (!title || title === graph?.title) {
+      // An empty draft is not a rename; put the saved name back instead of
+      // showing a title the server never accepted.
+      setTitleDraft(graph?.title ?? "");
+      return;
+    }
     try {
       const { graph: next } = await api.renameGraph(graphId, title);
       setGraph(next);
+      setTitleDraft(next.title);
     } catch (err) {
+      setTitleDraft(graph?.title ?? titleDraft);
       setError(userMessage(err, "ノート名を変更できませんでした。もう一度お試しください。"));
     }
   }
@@ -807,12 +1082,15 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     });
   }, []);
 
+  const dismissError = useCallback(() => setError(null), []);
+
   return {
     state: {
       graph,
       titleDraft,
       busy,
       error,
+      notice,
       activeParentId,
       nodes,
       edges,
@@ -834,7 +1112,9 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       onEdgesChange,
       onConnect,
       isValidConnection,
+      onNodeDragStart,
       onNodeDragStop,
+      dismissError,
       onNodeMouseEnter,
       onNodeMouseLeave,
       focusParent,
