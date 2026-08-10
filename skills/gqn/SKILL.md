@@ -60,7 +60,8 @@ Create graph (includes a root node) + linked child:
 ```bash
 gqn graphs create 'Topic'
 # → graph.id ; root node already created with the same title
-gqn nodes create <graphId> --title 'Child' --parent <rootNodeId> --body '## Notes\n- item'
+gqn nodes create <graphId> --title 'Child' --parent <rootNodeId> --body $'## Notes\n- item'
+# $'...' is required: plain '...\n...' stores a literal backslash-n, not a newline
 gqn graphs get <graphId>
 ```
 

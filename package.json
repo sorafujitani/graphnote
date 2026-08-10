@@ -1,5 +1,6 @@
 {
   "name": "graphnote",
+  "version": "0.2.0",
   "private": true,
   "description": "Personal graph notes on Cloudflare Workers (Google auth, D1, R2 export)",
   "bin": {

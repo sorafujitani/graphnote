@@ -45,6 +45,15 @@ echo "Downloading gqn from $BASE_URL"
 fetch "$BASE_URL/install/gqn.mjs" "$TMP_DIR/gqn.mjs" ||
   die "cannot reach $BASE_URL/install/gqn.mjs"
 
+# The site serves an SPA fallback page for unknown paths with status 200, so a
+# missing asset arrives as HTML. Verify we actually got the JS bundle.
+case "$(head -n 1 "$TMP_DIR/gqn.mjs")" in
+"<"*) die "downloaded file is HTML, not the gqn bundle — the asset may be missing from this deploy" ;;
+esac
+
+node --check "$TMP_DIR/gqn.mjs" 2>/dev/null ||
+  die "downloaded file failed a JavaScript syntax check; retry or report an issue"
+
 mkdir -p "$LIB_DIR" "$BIN_DIR"
 cp "$TMP_DIR/gqn.mjs" "$LIB_DIR/gqn.mjs"
 
