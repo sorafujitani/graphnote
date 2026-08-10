@@ -36,8 +36,22 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
-      include: ["src/worker/**/*.ts", "src/shared/**/*.ts", "src/react-app/lib/**/*.ts"],
+      include: [
+        "src/worker/**/*.ts",
+        "src/shared/**/*.ts",
+        "src/react-app/lib/**/*.ts",
+        "src/react-app/logic/**/*.ts",
+        "cli/args.ts",
+      ],
       exclude: ["**/*.test.ts", "**/*.test.tsx", "**/env.ts"],
+      // Ratchet: measured floor at the time thresholds were added. Raise as
+      // coverage grows; never lower without a reason in the commit message.
+      thresholds: {
+        statements: 52,
+        branches: 42,
+        functions: 58,
+        lines: 55,
+      },
     },
   },
 });
