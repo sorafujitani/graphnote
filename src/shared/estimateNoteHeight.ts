@@ -23,7 +23,11 @@ function textColumns(text: string): number {
 }
 
 /** Approximate rendered card height (px) for layout — matches `.note-card` in the UI. */
-export function estimateNoteHeight(title: string, body: string): number {
+export function estimateNoteHeight(
+  title: string,
+  body: string,
+  width: number | null = null,
+): number {
   const PADDING = 22;
   const TITLE_LINE = 22;
   const BODY_LINE = 19;
@@ -36,13 +40,20 @@ export function estimateNoteHeight(title: string, body: string): number {
    * Measured with the real Noto Sans JP webfont: 19 JP chars (38 columns)
    * per body line, 16 JP chars (32 columns) per title line.
    */
-  const BODY_COLS_PER_LINE = 38;
-  const TITLE_COLS_PER_LINE = 32;
+  const DEFAULT_WIDTH = 280;
+  const CONTENT_WIDTH = 254;
+  const cardWidth = Math.max(200, width ?? DEFAULT_WIDTH);
+  // A manually widened card wraps less, so its layout height should not be
+  // calculated as if it were still the default 280px card.
+  const widthFactor = (cardWidth - (DEFAULT_WIDTH - CONTENT_WIDTH)) / CONTENT_WIDTH;
+  const bodyColsPerLine = Math.max(1, Math.floor(38 * widthFactor));
+  const titleColsPerLine = Math.max(1, Math.floor(32 * widthFactor));
 
-  const titleLines = Math.max(1, Math.ceil(textColumns(title) / TITLE_COLS_PER_LINE));
+  const titleLines = Math.max(1, Math.ceil(textColumns(title) / titleColsPerLine));
 
   const bodyText = body.trim();
   let bodyLines = 2;
+  let markdownSpacing = 0;
   if (bodyText) {
     bodyLines = 0;
     for (const line of bodyText.split("\n")) {
@@ -52,11 +63,13 @@ export function estimateNoteHeight(title: string, body: string): number {
         continue;
       }
       const lineFactor = /^[-*#>]/.test(trimmed) ? 1.2 : 1;
-      bodyLines += Math.max(1, Math.ceil(textColumns(trimmed) / BODY_COLS_PER_LINE) * lineFactor);
+      bodyLines += Math.max(1, Math.ceil(textColumns(trimmed) / bodyColsPerLine) * lineFactor);
+      if (/^[-*#>]/.test(trimmed)) markdownSpacing += 2;
     }
     bodyLines = Math.max(bodyLines, 2);
   }
 
-  const raw = PADDING + titleLines * TITLE_LINE + TITLE_BODY_GAP + bodyLines * BODY_LINE;
+  const raw =
+    PADDING + titleLines * TITLE_LINE + TITLE_BODY_GAP + bodyLines * BODY_LINE + markdownSpacing;
   return Math.min(MAX, Math.max(MIN, Math.round(raw)));
 }

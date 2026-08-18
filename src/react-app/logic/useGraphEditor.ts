@@ -943,7 +943,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
             x: record.x,
             width: record.width,
             y: record.y,
-            height: record.height ?? estimateNoteHeight(record.title, record.body),
+            height: record.height ?? estimateNoteHeight(record.title, record.body, record.width),
           };
         }),
         edgeRecordsRef.current,
@@ -951,7 +951,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         undefined,
         before && {
           y: before.y,
-          height: before.height ?? estimateNoteHeight(before.title, before.body),
+          height: before.height ?? estimateNoteHeight(before.title, before.body, before.width),
         },
       );
       setNodeRecords((previous) =>

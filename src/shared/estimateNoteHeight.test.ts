@@ -26,4 +26,9 @@ describe("estimateNoteHeight column counting", () => {
   it("stays at the minimum for empty content", () => {
     expect(estimateNoteHeight("", "")).toBe(96);
   });
+
+  it("uses a manually widened card's available width", () => {
+    const body = "い".repeat(160);
+    expect(estimateNoteHeight("t", body, 900)).toBeLessThan(estimateNoteHeight("t", body, 200));
+  });
 });

@@ -29,7 +29,8 @@ export function placeChildPosition(
   for (const sibling of existingSiblings) {
     bottom = Math.max(
       bottom,
-      sibling.y + (sibling.height ?? estimateNoteHeight(sibling.title, sibling.body)),
+      sibling.y +
+        (sibling.height ?? estimateNoteHeight(sibling.title, sibling.body, sibling.width ?? null)),
     );
   }
   return { x, y: bottom + LAYOUT_GAP };

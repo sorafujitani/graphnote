@@ -349,6 +349,22 @@ describe("resizing a note", () => {
       height: "220px",
     });
   });
+
+  it("auto-arranges a saved card tall enough for its Markdown", async () => {
+    const body = Array.from({ length: 10 }, (_, index) => `- 項目 ${index + 1}`).join("\n");
+    await mountEditor([note("n1", 0, 0, "長い本文", body, { width: 420, height: 100 })]);
+
+    const before = cardBox("n1");
+    expect(cardElement("n1").scrollHeight).toBeGreaterThan(cardElement("n1").clientHeight);
+
+    await userEvent.click(screen.getByRole("button", { name: "自動整列" }));
+
+    await waitFor(() => expect(cardBox("n1").height).toBeGreaterThan(before.height));
+    await waitFor(() => {
+      const card = cardElement("n1");
+      expect(card.scrollHeight).toBeLessThanOrEqual(card.clientHeight + 1);
+    });
+  });
 });
 
 describe("navigating between notes", () => {

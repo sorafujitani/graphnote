@@ -237,7 +237,10 @@ export async function formatGraphLayout(
       id: node.id,
       width: node.width,
       y: node.y,
-      height: node.height ?? estimateNoteHeight(node.title, node.body),
+      // Arrange must reserve enough room for the actual body even when an old
+      // manual height is now too small. The persisted height is expanded below
+      // so the card and the layout use the same geometry.
+      height: Math.max(node.height ?? 0, estimateNoteHeight(node.title, node.body, node.width)),
     })),
     detail.edges,
   );
@@ -245,11 +248,25 @@ export async function formatGraphLayout(
   const statements = detail.nodes.flatMap((node) => {
     const pos = positions.get(node.id);
     if (!pos) return [];
-    if (pos.x === node.x && pos.y === node.y) return [];
+    const estimatedHeight = estimateNoteHeight(node.title, node.body, node.width);
+    // A null height means the card is content-sized; keep it null so future
+    // edits remain responsive. Only repair a saved manual height when it clips
+    // the current content, and never shrink a deliberate larger size.
+    const nextHeight = node.height === null ? null : Math.max(node.height, estimatedHeight);
+    const heightChanged = nextHeight !== node.height;
+    if (pos.x === node.x && pos.y === node.y && !heightChanged) return [];
+    const columns = ["x = ?", "y = ?"];
+    const binds: (number | string | null)[] = [pos.x, pos.y];
+    if (heightChanged) {
+      columns.push("height = ?");
+      binds.push(nextHeight);
+    }
+    columns.push("updated_at = ?");
+    binds.push(ts, node.id, graphId);
     return [
       db
-        .prepare(`UPDATE nodes SET x = ?, y = ?, updated_at = ? WHERE id = ? AND graph_id = ?`)
-        .bind(pos.x, pos.y, ts, node.id, graphId),
+        .prepare(`UPDATE nodes SET ${columns.join(", ")} WHERE id = ? AND graph_id = ?`)
+        .bind(...binds),
     ];
   });
   if (statements.length > 0) {

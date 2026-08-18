@@ -7,6 +7,7 @@
  */
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach } from "vite-plus/test";
+import { estimateNoteHeight } from "../../shared/estimateNoteHeight";
 import type { EdgeRecord, GraphDetail, NodeRecord } from "../../shared/types";
 import { GraphEditor } from "../pages/GraphEditor";
 import { stubFetch, type FetchStub } from "./api-stub";
@@ -71,6 +72,23 @@ function stubApi(detail: Pick<GraphDetail, "nodes" | "edges">): ApiStub {
       const payload = body as Partial<NodeRecord>;
       nodeSeq += 1;
       return { node: note(`n${nodeSeq}`, payload.x ?? 0, payload.y ?? 0, payload.title ?? "") };
+    }
+    if (path === `/api/graphs/${GRAPH_ID}/fmt` && method === "POST") {
+      return {
+        graph: { id: GRAPH_ID, owner_id: "u1", title: "Canvas", created_at: TS, updated_at: TS },
+        nodes: detail.nodes.map((node) =>
+          node.height !== null
+            ? {
+                ...node,
+                height: Math.max(
+                  node.height,
+                  estimateNoteHeight(node.title, node.body, node.width),
+                ),
+              }
+            : node,
+        ),
+        edges: detail.edges,
+      };
     }
     if (path.startsWith(`/api/graphs/${GRAPH_ID}/nodes/`) && method === "PATCH") {
       const id = path.split("/").pop() ?? "";
