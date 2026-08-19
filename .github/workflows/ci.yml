@@ -43,7 +43,13 @@ jobs:
         run: pnpm run knip
 
       - name: Browser for canvas tests
-        run: pnpm exec playwright install --with-deps chromium
+        run: |
+          # Azure's runner-local Ubuntu mirror can stall apt for the entire
+          # job. Keep Playwright's required system packages, but resolve them
+          # through Ubuntu's public mirror instead.
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+            /etc/apt/apt-mirrors.txt /etc/apt/sources.list.d/ubuntu.sources
+          pnpm exec playwright install --with-deps chromium
 
       - name: Test
         run: pnpm run test:coverage
