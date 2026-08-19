@@ -23,10 +23,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!headers.has("Content-Type") && init?.body) {
     headers.set("Content-Type", "application/json");
   }
+  const timeout = AbortSignal.timeout(15_000);
+  const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
   const res = await fetch(path, {
     credentials: "same-origin",
     ...init,
     headers,
+    signal,
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as {

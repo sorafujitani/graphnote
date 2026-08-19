@@ -12,6 +12,7 @@ import { Note } from "../../components/Note";
 import { NoteActionsProvider } from "../../components/NoteActions";
 import { EDGE_MARKER } from "../../logic/graphEditorFlow";
 import type { GraphEditorController } from "../../logic/useGraphEditor";
+import { EditorHelpDialog, NodeSearchDialog } from "./EditorDialogs";
 import { NodeInspector } from "./NodeInspector";
 
 type Props = {
@@ -54,10 +55,19 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
 
   return (
     <div className="grid h-screen min-h-screen grid-rows-[auto_1fr] overflow-hidden">
-      <header className="relative z-20 flex items-center gap-3 border-b border-line bg-canvas/90 px-4 py-[0.85rem] backdrop-blur-[10px]">
-        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto">
-          <button className="btn btn-secondary" type="button" onClick={onBack} title="⌘[">
-            ノート一覧
+      <header className="relative z-20 flex min-w-0 items-center gap-2 border-b border-line bg-canvas/90 px-2 py-2.5 backdrop-blur-[10px] md:gap-3 md:px-4 md:py-[0.85rem]">
+        <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
+          <button
+            className="btn btn-secondary shrink-0 px-2.5 md:px-[0.9rem]"
+            type="button"
+            onClick={onBack}
+            title="⌘["
+            aria-label="ノート一覧へ戻る"
+          >
+            <span aria-hidden="true" className="md:hidden">
+              ←
+            </span>
+            <span className="hidden md:inline">ノート一覧</span>
           </button>
           <input
             aria-label="ノート名"
@@ -73,60 +83,174 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
               event.currentTarget.blur();
               refs.canvasRef.current?.focus();
             }}
-            className="input-surface min-w-64 flex-1 px-3 py-[0.55rem] font-semibold"
+            className="input-surface min-w-0 flex-1 px-2.5 py-[0.55rem] font-semibold md:min-w-64 md:px-3"
           />
           <button
-            className="btn btn-secondary"
+            className="btn btn-accent shrink-0 px-2.5 md:px-[0.9rem]"
             type="button"
+            aria-label="ノードを追加"
             disabled={state.busy}
             onClick={() => void actions.onAddNode({ focus: true })}
             title="N"
           >
-            ノードを追加
+            <span aria-hidden="true" className="md:hidden">
+              ＋
+            </span>
+            <span className="hidden md:inline">ノードを追加</span>
           </button>
-          <button
-            className="btn btn-secondary"
-            type="button"
-            disabled={state.busy || !state.activeParentId}
-            onClick={() => void actions.addChildFromActiveParent()}
-            title="Tab"
-          >
-            子ノードを追加
-          </button>
-          <button
-            className="btn btn-secondary"
-            type="button"
-            disabled={
-              state.busy || (state.selectedNodeCount === 0 && state.selectedEdgeCount === 0)
-            }
-            onClick={() => void actions.onDeleteSelection(false)}
-            title="⌫"
-          >
-            {state.selectedEdgeCount > 0 ? "つながりを削除" : "選択を削除"}
-          </button>
-          <button
-            className="btn btn-danger"
-            type="button"
-            disabled={state.busy || state.selectedNodeCount === 0}
-            onClick={() => void actions.onDeleteSelection(true)}
-            title="⇧⌫"
-          >
-            下位ごと削除
-          </button>
-          <button
-            className="btn btn-secondary"
-            type="button"
-            disabled={state.busy || state.nodeCount === 0}
-            onClick={() => void actions.onFmt()}
-            title="A — ノードを自動整列"
-          >
-            自動整列
-          </button>
+          <div className="hidden items-center gap-2 lg:flex">
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={state.busy || !state.activeParentId}
+              onClick={() => void actions.addChildFromActiveParent()}
+              title="Tab"
+            >
+              子ノードを追加
+            </button>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={
+                state.busy || (state.selectedNodeCount === 0 && state.selectedEdgeCount === 0)
+              }
+              onClick={() => void actions.onDeleteSelection(false)}
+              title="⌫"
+            >
+              {state.selectedEdgeCount > 0 ? "つながりを削除" : "選択を削除"}
+            </button>
+            <button
+              className="btn btn-danger"
+              type="button"
+              disabled={state.busy || state.selectedNodeCount === 0}
+              onClick={() => void actions.onDeleteSelection(true)}
+              title="⇧⌫"
+            >
+              下位ごと削除
+            </button>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={state.busy || state.nodeCount === 0}
+              onClick={() => void actions.onFmt()}
+              title="A — ノードを自動整列"
+            >
+              自動整列
+            </button>
+            <button
+              className="btn btn-secondary px-3"
+              type="button"
+              disabled={state.busy || !state.canUndo}
+              onClick={() => void actions.undo()}
+              title="⌘Z"
+            >
+              元に戻す
+            </button>
+            <button
+              className="btn btn-secondary px-3"
+              type="button"
+              disabled={state.busy || !state.canRedo}
+              onClick={() => void actions.redo()}
+              title="⌘⇧Z"
+            >
+              やり直す
+            </button>
+          </div>
         </div>
 
         <AppMenu>
           {(close) => (
             <>
+              <button
+                className="btn btn-ghost flex w-full justify-start"
+                type="button"
+                onClick={() => {
+                  close();
+                  actions.openSearch();
+                }}
+              >
+                ノードを検索
+              </button>
+              <button
+                className="btn btn-ghost flex w-full justify-start"
+                type="button"
+                onClick={() => {
+                  close();
+                  actions.openHelp();
+                }}
+              >
+                操作ヘルプ
+              </button>
+              <div className="mx-2 border-t border-line lg:hidden" />
+              <button
+                className="btn btn-ghost flex w-full justify-start lg:hidden"
+                type="button"
+                disabled={state.busy || !state.activeParentId}
+                onClick={() => {
+                  close();
+                  void actions.addChildFromActiveParent();
+                }}
+              >
+                子ノードを追加
+              </button>
+              <button
+                className="btn btn-ghost flex w-full justify-start lg:hidden"
+                type="button"
+                disabled={
+                  state.busy || (state.selectedNodeCount === 0 && state.selectedEdgeCount === 0)
+                }
+                onClick={() => {
+                  close();
+                  void actions.onDeleteSelection(false);
+                }}
+              >
+                {state.selectedEdgeCount > 0 ? "つながりを削除" : "選択を削除"}
+              </button>
+              <button
+                className="btn btn-ghost flex w-full justify-start lg:hidden"
+                type="button"
+                disabled={state.busy || state.nodeCount === 0}
+                onClick={() => {
+                  close();
+                  void actions.onFmt();
+                }}
+              >
+                自動整列
+              </button>
+              <button
+                className="btn btn-ghost flex w-full justify-start lg:hidden"
+                type="button"
+                disabled={state.busy || !state.canUndo}
+                onClick={() => {
+                  close();
+                  void actions.undo();
+                }}
+              >
+                元に戻す
+              </button>
+              <button
+                className="btn btn-ghost flex w-full justify-start lg:hidden"
+                type="button"
+                disabled={state.busy || !state.canRedo}
+                onClick={() => {
+                  close();
+                  void actions.redo();
+                }}
+              >
+                やり直す
+              </button>
+              <button
+                className="btn btn-ghost flex w-full justify-start text-danger lg:hidden"
+                type="button"
+                disabled={state.busy || state.selectedNodeCount === 0}
+                onClick={() => {
+                  close();
+                  void actions.onDeleteSelection(true);
+                }}
+              >
+                下位ごと削除
+              </button>
+              <div className="mx-2 border-t border-line" />
               <button
                 className="btn btn-ghost flex w-full justify-start"
                 type="button"
@@ -221,6 +345,24 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
               </ReactFlow>
             </NoteActionsProvider>
           </div>
+          {state.graph && state.nodeCount === 0 ? (
+            <div className="pointer-events-none absolute inset-0 z-[5] grid place-items-center p-6">
+              <div className="panel pointer-events-auto max-w-sm px-6 py-6 text-center shadow-2xl">
+                <p className="m-0 font-brand text-xl font-bold">最初のアイデアを置く</p>
+                <p className="mt-2 mb-5 text-sm leading-relaxed text-muted">
+                  ノードを作ると、ここから考えをつないでいけます。Nキーやキャンバスのダブルクリックでも追加できます。
+                </p>
+                <button
+                  className="btn btn-accent"
+                  type="button"
+                  disabled={state.busy}
+                  onClick={() => void actions.onAddNode({ focus: true })}
+                >
+                  最初のノードを追加
+                </button>
+              </div>
+            </div>
+          ) : null}
           {/* Stacked, click-through container: only the dismiss button takes
               pointer events, so a lingering toast never blocks the canvas. */}
           <div className="pointer-events-none absolute top-4 left-1/2 z-10 flex w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 flex-col gap-2">
@@ -247,8 +389,19 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
             ) : null}
           </div>
         </div>
-        <NodeInspector node={selectedNode} />
+        <NodeInspector
+          node={selectedNode}
+          onReturnToCanvas={() => refs.canvasRef.current?.focus()}
+        />
       </div>
+      {state.dialog === "help" ? <EditorHelpDialog onClose={actions.closeDialog} /> : null}
+      {state.dialog === "search" ? (
+        <NodeSearchDialog
+          nodes={state.nodeRecords}
+          onSelect={actions.focusNodeInView}
+          onClose={actions.closeDialog}
+        />
+      ) : null}
     </div>
   );
 }

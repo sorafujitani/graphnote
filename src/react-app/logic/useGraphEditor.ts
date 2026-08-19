@@ -25,6 +25,14 @@ import { reflowAroundNode } from "../../shared/reflowTree";
 import { isEditableTarget, isInteractiveTarget, nearestNodeId } from "../lib/keyboard";
 import { userMessage } from "../lib/userMessage";
 import { ApiError, api } from "../server/api";
+import {
+  EMPTY_HISTORY,
+  historyStep,
+  makeHistoryEntry,
+  recordHistory,
+  versionPatch,
+  type EditorHistory,
+} from "./editorHistory";
 import { presentEdges, presentNodes } from "./graphEditorFlow";
 import type { AppNode, EditRequest } from "./graphEditorTypes";
 
@@ -46,6 +54,10 @@ function waitFrames(count = 2): Promise<void> {
   });
 }
 
+function sameIds(previous: string[], next: string[]) {
+  return previous.length === next.length && previous.every((id, index) => id === next[index]);
+}
+
 export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const [graph, setGraph] = useState<Graph | null>(null);
   const [nodeRecords, setNodeRecords] = useState<NodeRecord[]>([]);
@@ -61,6 +73,8 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  const [dialog, setDialog] = useState<"help" | "search" | null>(null);
+  const [history, setHistory] = useState<EditorHistory>(EMPTY_HISTORY);
 
   const noticeTimerRef = useRef<number | null>(null);
   const showNotice = useCallback((message: string) => {
@@ -88,6 +102,8 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const edgeRecordsRef = useRef(edgeRecords);
   const busyRef = useRef(busy);
   const linkSourceIdRef = useRef(linkSourceId);
+  const dialogRef = useRef(dialog);
+  const historyRef = useRef(history);
   useLayoutEffect(() => {
     selectedNodeIdsRef.current = selectedNodeIds;
     selectedEdgeIdsRef.current = selectedEdgeIds;
@@ -96,15 +112,29 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     edgeRecordsRef.current = edgeRecords;
     busyRef.current = busy;
     linkSourceIdRef.current = linkSourceId;
+    dialogRef.current = dialog;
+    historyRef.current = history;
   }, [
     busy,
     edgeRecords,
     hoveredNodeId,
     linkSourceId,
+    dialog,
+    history,
     nodeRecords,
     selectedEdgeIds,
     selectedNodeIds,
   ]);
+
+  const pushHistory = useCallback((label: string, before: NodeRecord[], after: NodeRecord[]) => {
+    const entry = makeHistoryEntry(label, before, after);
+    if (!entry) return;
+    setHistory((previous) => {
+      const next = recordHistory(previous, entry);
+      historyRef.current = next;
+      return next;
+    });
+  }, []);
 
   const activeParentId = hoveredNodeId ?? selectedNodeIds[0] ?? null;
 
@@ -137,6 +167,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         .updateNode(graphId, nodeId, patch)
         .then(({ node }) => {
           setNodeRecords((prev) => prev.map((item) => (item.id === node.id ? node : item)));
+          if (before) pushHistory("テキスト編集", [before], [node]);
         })
         .catch((err) => {
           // Roll the optimistic edit back: leaving unsaved text on screen makes
@@ -151,7 +182,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
           setError(userMessage(err, "ノードを保存できませんでした。もう一度お試しください。"));
         });
     },
-    [graphId],
+    [graphId, pushHistory],
   );
 
   useEffect(() => {
@@ -168,6 +199,8 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         setSelectedNodeIds([]);
         setSelectedEdgeIds([]);
         setHoveredNodeId(null);
+        setHistory(EMPTY_HISTORY);
+        historyRef.current = EMPTY_HISTORY;
         setNodes(presentNodes(detail.nodes, [], null, null, []));
         requestAnimationFrame(() => {
           void flowRef.current?.fitView({ padding: 0.25 });
@@ -220,8 +253,8 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   }, [edgeRecords]);
 
   const selectNodes = useCallback((ids: string[]) => {
-    setSelectedNodeIds(ids);
-    setSelectedEdgeIds([]);
+    setSelectedNodeIds((previous) => (sameIds(previous, ids) ? previous : ids));
+    setSelectedEdgeIds((previous) => (previous.length === 0 ? previous : []));
   }, []);
 
   /** Selection is the keyboard's stand-in for hover, so focusing is selecting. */
@@ -264,8 +297,8 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
   const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
     const ids = params.nodes.map((node) => node.id);
     const edgeIds = params.edges.map((edge) => edge.id);
-    setSelectedNodeIds(ids);
-    setSelectedEdgeIds(edgeIds);
+    setSelectedNodeIds((previous) => (sameIds(previous, ids) ? previous : ids));
+    setSelectedEdgeIds((previous) => (sameIds(previous, edgeIds) ? previous : edgeIds));
   }, []);
 
   // Generous drop targets mean self-drops and repeats are easy; reject them here
@@ -517,12 +550,14 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
 
   const onFmt = useCallback(async () => {
     if (nodeRecordsRef.current.length === 0 || busyRef.current) return;
+    const before = nodeRecordsRef.current;
     setBusy(true);
     setError(null);
     try {
       const detail = await api.formatGraph(graphId);
       const byId = new Map(detail.nodes.map((node) => [node.id, node]));
       setNodeRecords(detail.nodes);
+      pushHistory("自動整列", before, detail.nodes);
       setNodes((prev) =>
         prev.map((node) => {
           const record = byId.get(node.id);
@@ -538,7 +573,7 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     } finally {
       setBusy(false);
     }
-  }, [graphId, revealNodes]);
+  }, [graphId, pushHistory, revealNodes]);
 
   // Nudges land per keystroke locally but reach the server once per pause:
   // a held arrow key must not turn into hundreds of PATCHes racing the
@@ -555,6 +590,10 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     pendingNudgeRef.current = null;
     if (!originals || originals.size === 0) return;
     const targets = nodeRecordsRef.current.filter((node) => originals.has(node.id));
+    const beforeTargets = targets.map((node) => ({
+      ...node,
+      ...originals.get(node.id),
+    }));
     const settled = await Promise.allSettled(
       targets.map((node) => api.updateNode(graphId, node.id, { x: node.x, y: node.y })),
     );
@@ -592,7 +631,16 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         userMessage(failure, "ノードの位置を保存できませんでした。もう一度お試しください。"),
       );
     }
-  }, [graphId]);
+    const savedNodes = [...saved.values()];
+    if (savedNodes.length > 0) {
+      const savedIds = new Set(savedNodes.map((node) => node.id));
+      pushHistory(
+        "ノードを移動",
+        beforeTargets.filter((node) => savedIds.has(node.id)),
+        savedNodes,
+      );
+    }
+  }, [graphId, pushHistory]);
 
   const nudgeSelected = useCallback(
     (dx: number, dy: number) => {
@@ -629,11 +677,101 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
     [flushNudge],
   );
 
+  const moveHistory = useCallback(
+    async (direction: "undo" | "redo") => {
+      if (busyRef.current) return;
+      await flushNudge();
+      const step = historyStep(historyRef.current, direction);
+      if (!step) return;
+      setBusy(true);
+      setError(null);
+      const settled = await Promise.allSettled(
+        step.target.map((version) => api.updateNode(graphId, version.id, versionPatch(version))),
+      );
+      const saved = new Map<string, NodeRecord>();
+      let failure: unknown = null;
+      settled.forEach((result) => {
+        if (result.status === "fulfilled") saved.set(result.value.node.id, result.value.node);
+        else failure = result.reason;
+      });
+      if (saved.size > 0) {
+        setNodeRecords((previous) => previous.map((node) => saved.get(node.id) ?? node));
+        setNodes((previous) =>
+          previous.map((node) => {
+            const record = saved.get(node.id);
+            if (!record) return node;
+            const next = {
+              ...node,
+              position: { x: record.x, y: record.y },
+              width: record.width ?? undefined,
+              height: record.height ?? undefined,
+            };
+            next.style = {
+              ...node.style,
+              width: record.width ?? undefined,
+              height: record.height ?? undefined,
+            };
+            return next;
+          }),
+        );
+        updateInternalsRef.current?.([...saved.keys()]);
+      }
+      if (failure) {
+        setError(
+          userMessage(
+            failure,
+            `${direction === "undo" ? "元に戻す" : "やり直す"}操作を保存できませんでした。もう一度お試しください。`,
+          ),
+        );
+      } else {
+        setHistory(step.next);
+        historyRef.current = step.next;
+        showNotice(
+          `${step.entry.label}を${direction === "undo" ? "元に戻しました" : "やり直しました"}。`,
+        );
+      }
+      setBusy(false);
+    },
+    [flushNudge, graphId, showNotice],
+  );
+
+  const closeDialog = useCallback(() => {
+    setDialog(null);
+    requestAnimationFrame(() => canvasRef.current?.focus());
+  }, []);
+
+  const focusNodeInView = useCallback(
+    (nodeId: string) => {
+      const node = nodeRecordsRef.current.find((record) => record.id === nodeId);
+      if (!node) return;
+      selectNodes([nodeId]);
+      setDialog(null);
+      const width = node.width ?? 280;
+      const height = node.height ?? estimateNoteHeight(node.title, node.body, node.width);
+      requestAnimationFrame(() => {
+        void flowRef.current?.setCenter(node.x + width / 2, node.y + height / 2, {
+          zoom: Math.max(flowRef.current?.getZoom() ?? 1, 1),
+          duration: 300,
+        });
+        canvasRef.current?.focus();
+      });
+    },
+    [selectNodes],
+  );
+
   const onCanvasKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.defaultPrevented) return;
     const editable = isEditableTarget(event.target);
     const mod = event.metaKey || event.ctrlKey;
     const key = event.key.toLowerCase();
+
+    if (dialogRef.current) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDialog();
+      }
+      return;
+    }
 
     // In-field Tab is handled by Note (creates linked child).
     if (editable) {
@@ -641,6 +779,24 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         (document.activeElement as HTMLElement | null)?.blur();
         canvasRef.current?.focus();
       }
+      return;
+    }
+
+    if (mod && key === "k") {
+      event.preventDefault();
+      setDialog("search");
+      return;
+    }
+
+    if (event.key === "?" && !mod) {
+      event.preventDefault();
+      setDialog("help");
+      return;
+    }
+
+    if (mod && key === "z") {
+      event.preventDefault();
+      void moveHistory(event.shiftKey ? "redo" : "undo");
       return;
     }
 
@@ -923,6 +1079,19 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         userMessage(failure, "ノードの位置を保存できませんでした。もう一度お試しください。"),
       );
     }
+    const savedNodes = [...saved.values()];
+    if (savedNodes.length > 0) {
+      const savedIds = new Set(savedNodes.map((item) => item.id));
+      const before = dragged
+        .filter((item) => savedIds.has(item.id))
+        .map((item) => {
+          const record = nodeRecordsRef.current.find((candidate) => candidate.id === item.id);
+          const start = startPositions.get(item.id);
+          return record && start ? { ...record, ...start } : record;
+        })
+        .filter((item): item is NodeRecord => Boolean(item));
+      pushHistory("ノードを移動", before, savedNodes);
+    }
   }
 
   const onNodeResize = useCallback(
@@ -1032,9 +1201,18 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
             userMessage(failure, "ノードの大きさを保存できませんでした。もう一度お試しください。"),
           );
         }
+        const savedNodes = [...saved.values()];
+        if (savedNodes.length > 0) {
+          const savedIds = new Set(savedNodes.map((node) => node.id));
+          pushHistory(
+            "ノードの大きさを変更",
+            [...originals.values()].filter((node) => savedIds.has(node.id)),
+            savedNodes,
+          );
+        }
       });
     },
-    [graphId],
+    [graphId, pushHistory],
   );
 
   async function onRenameGraph() {
@@ -1091,13 +1269,17 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       busy,
       error,
       notice,
+      dialog,
       activeParentId,
       nodes,
       edges,
+      nodeRecords,
       nodeCount: nodeRecords.length,
       edgeCount: edgeRecords.length,
       selectedNodeCount: selectedNodeIds.length,
       selectedEdgeCount: selectedEdgeIds.length,
+      canUndo: history.past.length > 0,
+      canRedo: history.future.length > 0,
     },
     refs: { canvasRef, flowRef, updateInternalsRef },
     actions: {
@@ -1108,6 +1290,12 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       onDeleteSelection,
       onExport,
       onFmt,
+      undo: () => moveHistory("undo"),
+      redo: () => moveHistory("redo"),
+      openHelp: () => setDialog("help"),
+      openSearch: () => setDialog("search"),
+      closeDialog,
+      focusNodeInView,
       onNodesChange,
       onEdgesChange,
       onConnect,

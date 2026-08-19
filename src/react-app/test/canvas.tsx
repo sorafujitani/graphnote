@@ -116,8 +116,6 @@ afterEach(() => {
  * gestures fired before that hit unmeasured handles and silently do nothing.
  */
 export async function mountEditor(nodes: NodeRecord[], edges: EdgeRecord[] = []): Promise<ApiStub> {
-  if (nodes.length === 0) throw new Error("mountEditor needs at least one note");
-
   activeStub = stubApi({ nodes, edges });
   render(
     <div style={{ position: "fixed", inset: 0 }}>
