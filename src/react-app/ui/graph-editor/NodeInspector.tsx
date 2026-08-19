@@ -13,13 +13,29 @@ function clampWidth(width: number) {
 
 type Props = {
   node: AppNode | undefined;
+  onReturnToCanvas: () => void;
 };
 
-export function NodeInspector({ node }: Props) {
-  const [open, setOpen] = useState(true);
+export function NodeInspector({ node, onReturnToCanvas }: Props) {
+  const [mobile, setMobile] = useState(() => window.matchMedia("(max-width: 768px)").matches);
+  const [open, setOpen] = useState(() => !window.matchMedia("(max-width: 768px)").matches);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [resizing, setResizing] = useState(false);
   const resizeStartRef = useRef({ x: 0, width: DEFAULT_WIDTH });
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 768px)");
+    const update = () => {
+      setMobile(query.matches);
+      if (query.matches) setOpen(false);
+    };
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (mobile && !node) setOpen(false);
+  }, [mobile, node]);
 
   useEffect(() => {
     if (!resizing) return;
@@ -59,6 +75,7 @@ export function NodeInspector({ node }: Props) {
   }
 
   if (!open) {
+    if (mobile && !node) return null;
     return (
       <button
         className="btn btn-secondary absolute top-4 right-4 z-10 shadow-lg"
@@ -98,7 +115,10 @@ export function NodeInspector({ node }: Props) {
             className="btn btn-ghost grid size-8 place-items-center px-0 py-0 text-lg"
             type="button"
             aria-label="詳細を閉じる"
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              setOpen(false);
+              onReturnToCanvas();
+            }}
           >
             ×
           </button>

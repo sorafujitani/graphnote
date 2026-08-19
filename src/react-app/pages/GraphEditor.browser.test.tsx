@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vite-plus/test";
-import { userEvent } from "vite-plus/test/browser/context";
+import { page, userEvent } from "vite-plus/test/browser/context";
 import {
   cardBox,
   cardCenter,
@@ -16,6 +16,125 @@ import {
 } from "../test/canvas";
 
 const twoNotes = () => [note("n1", 0, 0, "Alpha"), note("n2", 520, 40, "Beta")];
+
+describe("P1 editor workflows", () => {
+  it("starts mobile with a clear canvas and keeps primary actions in one row", async () => {
+    await page.viewport(390, 844);
+    await mountEditor(twoNotes());
+
+    expect(screen.queryByRole("complementary", { name: "ノードの詳細" })).not.toBeInTheDocument();
+    const header = document.querySelector("header");
+    expect(header?.scrollWidth).toBeLessThanOrEqual(header?.clientWidth ?? 0);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    expect(screen.getByRole("button", { name: "ノート一覧へ戻る" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ノードを追加" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "メニュー" })).toBeInTheDocument();
+
+    await userEvent.click(cardElement("n1"));
+    await userEvent.click(await screen.findByRole("button", { name: "詳細を開く" }));
+    expect(screen.getByRole("complementary", { name: "ノードの詳細" })).toHaveTextContent("Alpha");
+    await userEvent.click(screen.getByRole("button", { name: "詳細を閉じる" }));
+    expect(document.activeElement).toBe(
+      screen.getByRole("application", { name: "ノート編集キャンバス" }),
+    );
+    await page.viewport(1280, 900);
+  });
+
+  it("creates the first node from the empty-canvas guide", async () => {
+    const api = await mountEditor([]);
+
+    await userEvent.click(screen.getByRole("button", { name: "最初のノードを追加" }));
+
+    await waitFor(() => expect(api.matching("POST", "/nodes")).toHaveLength(1));
+    await waitFor(() => expect(document.querySelectorAll(".note-card")).toHaveLength(1));
+    expect(screen.queryByRole("button", { name: "最初のノードを追加" })).not.toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toHaveAttribute("data-node-field", "title"));
+  });
+
+  it("opens categorized help with ? and blocks canvas shortcuts", async () => {
+    const api = await mountEditor(twoNotes());
+    await userEvent.keyboard("?");
+
+    const dialog = await screen.findByRole("dialog", { name: "操作ヘルプ" });
+    for (const category of [
+      "作成・編集",
+      "移動・検索",
+      "接続・選択",
+      "整理・復元",
+      "ナビゲーション",
+    ]) {
+      expect(within(dialog).getByText(category)).toBeInTheDocument();
+    }
+    await userEvent.keyboard("n");
+    expect(api.matching("POST", "/nodes")).toEqual([]);
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "操作ヘルプ" })).not.toBeInTheDocument();
+  });
+
+  it("searches title and body, then selects and centers the result", async () => {
+    await mountEditor([
+      note("n1", 0, 0, "Alpha", "first"),
+      note("n2", 900, 700, "Beta", "探している本文です"),
+    ]);
+    await userEvent.keyboard("{Control>}k{/Control}");
+
+    const input = await screen.findByRole("textbox", { name: "検索語" });
+    await userEvent.fill(input, "探している");
+    expect(screen.getByRole("option", { name: /Beta/ })).toHaveTextContent("探している本文");
+    await userEvent.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(cardElement("n2").closest(".react-flow__node")).toHaveClass("selected"),
+    );
+    expect(screen.queryByRole("dialog", { name: "ノードを検索" })).not.toBeInTheDocument();
+  });
+
+  it("undoes and redoes a persisted text edit", async () => {
+    const api = await mountEditor(twoNotes());
+    const card = cardBox("n1");
+    const title = fieldBox("n1", "title");
+    await userEvent.dblClick(cardElement("n1"), {
+      position: { x: title.x - card.x + 20, y: title.y - card.y + 4 },
+    });
+    await userEvent.fill(fieldEditor("n1", "title"), "Renamed");
+    await userEvent.click(document.querySelector(".react-flow__pane") as HTMLElement);
+    await waitFor(() => expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(1));
+
+    await userEvent.click(await screen.findByRole("button", { name: "元に戻す" }));
+    await waitFor(() => expect(cardElement("n1")).toHaveTextContent("Alpha"));
+    await userEvent.click(screen.getByRole("button", { name: "やり直す" }));
+    await waitFor(() => expect(cardElement("n1")).toHaveTextContent("Renamed"));
+    expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(3);
+  });
+
+  it("persists undo and redo for a completed drag", async () => {
+    const api = await mountEditor(twoNotes());
+    const before = cardBox("n1");
+    const from = { x: before.x + 80, y: before.y + 40 };
+    await dragMouse(from, { x: from.x + 70, y: from.y + 70 });
+    await waitFor(() => expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(1));
+    expect(cardBox("n1").x).toBeGreaterThan(before.x + 40);
+
+    const undo = screen.getByRole("button", { name: "元に戻す" });
+    await waitFor(() => expect(undo).toBeEnabled());
+    await userEvent.click(undo);
+    await waitFor(() => expect(cardBox("n1").x).toBeCloseTo(before.x, 0));
+    await userEvent.click(screen.getByRole("button", { name: "やり直す" }));
+    await waitFor(() => expect(cardBox("n1").x).toBeGreaterThan(before.x + 40));
+    expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(3);
+  });
+
+  it("treats auto-arrange as one undoable operation", async () => {
+    const body = Array.from({ length: 10 }, (_, index) => `- 項目 ${index + 1}`).join("\n");
+    await mountEditor([note("n1", 0, 0, "長い本文", body, { width: 420, height: 100 })]);
+    const before = cardBox("n1").height;
+
+    await userEvent.click(screen.getByRole("button", { name: "自動整列" }));
+    await waitFor(() => expect(cardBox("n1").height).toBeGreaterThan(before));
+    await userEvent.click(screen.getByRole("button", { name: "元に戻す" }));
+    await waitFor(() => expect(cardBox("n1").height).toBeCloseTo(before, 0));
+  });
+});
 
 describe("customer-facing editor copy", () => {
   it("keeps secondary actions in the menu and removes shortcut copy", async () => {
