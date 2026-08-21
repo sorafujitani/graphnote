@@ -487,6 +487,25 @@ describe("resizing a note", () => {
 });
 
 describe("navigating between notes", () => {
+  it("clears the previous hovered focus when an arrow selects another note", async () => {
+    await mountEditor([note("n1", 0, 0, "Left"), note("n2", 520, 0, "Right")]);
+
+    await userEvent.click(cardElement("n2"));
+    await waitFor(() => expect(cardElement("n2")).toHaveClass("is-active"));
+
+    await userEvent.keyboard("{ArrowLeft}");
+
+    await waitFor(() => {
+      expect(cardElement("n1").closest(".react-flow__node")).toHaveClass("selected");
+      expect(cardElement("n1")).toHaveClass("is-active");
+      expect(cardElement("n2")).not.toHaveClass("is-active");
+      expect(document.querySelectorAll(".note-card.is-active")).toHaveLength(1);
+      expect(screen.getAllByText("Tabで子ノード")).toHaveLength(1);
+      expect(cardElement("n1").closest(".react-flow__node")).toHaveTextContent("Tabで子ノード");
+      expect(cardElement("n2").closest(".react-flow__node")).not.toHaveTextContent("Tabで子ノード");
+    });
+  });
+
   it("moves down to the note below instead of a mostly-right note", async () => {
     await mountEditor([
       note("n1", 0, 0, "Current"),
@@ -501,7 +520,13 @@ describe("navigating between notes", () => {
     await userEvent.keyboard("{ArrowDown}");
 
     await waitFor(() => {
-      expect(cardElement("n3").closest(".react-flow__node")).toHaveClass("selected");
+      const previous = cardElement("n1").closest(".react-flow__node") as HTMLElement;
+      const current = cardElement("n3").closest(".react-flow__node") as HTMLElement;
+
+      expect(current).toHaveClass("selected");
+      expect(previous).not.toHaveClass("selected");
+      expect(previous.querySelector(".react-flow__resize-control")).toBeNull();
+      expect(document.querySelectorAll(".react-flow__node.selected")).toHaveLength(1);
     });
   });
 });

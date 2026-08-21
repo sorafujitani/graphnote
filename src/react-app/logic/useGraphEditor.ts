@@ -977,6 +977,9 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
       // nudge). Keep one predictable owner for the graph's arrow shortcuts.
       event.stopPropagation();
       const current = currentParentId();
+      // Once the keyboard takes over, a stationary pointer must not keep the
+      // previous card highlighted as a second active parent.
+      setHoveredNodeId(null);
 
       if (event.shiftKey && current) {
         const step = event.altKey ? 10 : 40;
