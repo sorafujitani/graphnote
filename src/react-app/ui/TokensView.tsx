@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { CommandLine } from "../components/CommandLine";
+import { CopyButton } from "../components/CopyButton";
 import type { TokensController } from "../logic/useTokens";
 
 const dateFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium" });
@@ -14,6 +16,7 @@ type Props = {
 
 export function TokensView({ controller, onBack }: Props) {
   const { state, actions } = controller;
+  const createdTokenRef = useRef<HTMLElement>(null);
 
   return (
     <div className="mx-auto h-full min-h-screen max-w-[720px] p-6">
@@ -30,7 +33,19 @@ export function TokensView({ controller, onBack }: Props) {
       {state.created ? (
         <div className="panel mb-4 p-4">
           <p className="mt-0 mb-2 font-semibold">このキーは今だけ表示されます</p>
-          <code className="break-all font-mono">{state.created}</code>
+          <div className="flex items-start gap-2">
+            <code
+              ref={createdTokenRef}
+              data-created-token
+              className="min-w-0 flex-1 break-all font-mono"
+            >
+              {state.created}
+            </code>
+            <CopyButton
+              targetRef={createdTokenRef}
+              className="shrink-0 px-[0.6rem] py-[0.3rem] text-[0.78rem]"
+            />
+          </div>
           <p className="mt-3 mb-[0.35rem] text-sm text-muted">
             コピーして安全な場所に保管してください。CLIでは次のコマンドから設定できます。
           </p>
