@@ -1,5 +1,5 @@
 import { cleanup, render, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser/context";
 import type { ApiTokenMeta } from "../../shared/types";
 import { stubFetch, type FetchStub } from "../test/api-stub";
@@ -23,6 +23,7 @@ afterEach(() => {
   cleanup();
   stub?.restore();
   stub = null;
+  vi.restoreAllMocks();
 });
 
 async function mountTokens() {
@@ -100,15 +101,62 @@ describe("install guidance", () => {
     });
   });
 
-  it("selects the command when the clipboard is unavailable", async () => {
-    // Headless Chromium denies clipboard writes, which is the same failure a
-    // user hits over plain http — the text has to stay reachable.
+  it("copies the newly created key with one click", async () => {
     await mountTokens();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+
+    await userEvent.click(document.querySelector("button.accent") as HTMLElement);
+
+    await waitFor(() => {
+      expect(document.querySelector("code[data-created-token]")).toHaveTextContent(
+        "gqn_live_abc123",
+      );
+    });
+    const key = document.querySelector("code[data-created-token]") as HTMLElement;
+    const copyButton = key.parentElement?.querySelector("button") as HTMLElement;
+    await userEvent.click(copyButton);
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("gqn_live_abc123"));
+    expect(copyButton).toHaveTextContent("コピーしました");
+    expect(copyButton.parentElement?.querySelector('[role="status"]')).toHaveTextContent(
+      "コピーしました",
+    );
+  });
+
+  it("selects the newly created key when the clipboard is unavailable", async () => {
+    await mountTokens();
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denied"));
+
+    await userEvent.click(document.querySelector("button.accent") as HTMLElement);
+
+    await waitFor(() => {
+      expect(document.querySelector("code[data-created-token]")).toHaveTextContent(
+        "gqn_live_abc123",
+      );
+    });
+    const key = document.querySelector("code[data-created-token]") as HTMLElement;
+    const copyButton = key.parentElement?.querySelector("button") as HTMLElement;
+    await userEvent.click(copyButton);
+
+    await waitFor(() => {
+      expect(window.getSelection()?.toString()).toBe("gqn_live_abc123");
+    });
+    expect(copyButton.parentElement?.querySelector('[role="status"]')).toHaveTextContent(
+      "コピーできないためテキストを選択しました",
+    );
+  });
+
+  it("selects the command when the clipboard is unavailable", async () => {
+    await mountTokens();
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockRejectedValue(new Error("denied"));
     await userEvent.click(document.querySelector("details.install-panel summary") as HTMLElement);
 
     await userEvent.click(document.querySelector(".command-line-row button") as HTMLElement);
 
     await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(commands()[0]);
       expect(window.getSelection()?.toString()).toBe(commands()[0]);
     });
   });
