@@ -21,7 +21,6 @@ export function CommandLine({ command, hint }: Props) {
           {command}
         </code>
         <CopyButton
-          text={command}
           targetRef={codeRef}
           className="shrink-0 px-[0.6rem] py-[0.3rem] text-[0.78rem]"
         />

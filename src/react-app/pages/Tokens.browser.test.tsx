@@ -57,6 +57,18 @@ function commands(): string[] {
   );
 }
 
+async function createdKeyCopyButton(): Promise<HTMLElement> {
+  await waitFor(() => {
+    expect(document.querySelector("code[data-created-token]")).toHaveTextContent("gqn_live_abc123");
+  });
+  const key = document.querySelector("code[data-created-token]") as HTMLElement;
+  return key.parentElement?.querySelector("button") as HTMLElement;
+}
+
+function statusOf(button: HTMLElement): Element | null {
+  return button.parentElement?.querySelector('[role="status"]') ?? null;
+}
+
 describe("install guidance", () => {
   it("names the screen and permissions for CLI users", async () => {
     await mountTokens();
@@ -103,24 +115,42 @@ describe("install guidance", () => {
 
   it("copies the newly created key with one click", async () => {
     await mountTokens();
+    // Real clipboard writes need a permission grant Playwright cannot give
+    // reliably, so only the call is checked here.
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
 
     await userEvent.click(document.querySelector("button.accent") as HTMLElement);
-
-    await waitFor(() => {
-      expect(document.querySelector("code[data-created-token]")).toHaveTextContent(
-        "gqn_live_abc123",
-      );
-    });
-    const key = document.querySelector("code[data-created-token]") as HTMLElement;
-    const copyButton = key.parentElement?.querySelector("button") as HTMLElement;
+    const copyButton = await createdKeyCopyButton();
     await userEvent.click(copyButton);
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("gqn_live_abc123"));
-    expect(copyButton).toHaveTextContent("コピーしました");
-    expect(copyButton.parentElement?.querySelector('[role="status"]')).toHaveTextContent(
-      "コピーしました",
+    await waitFor(() => expect(copyButton).toHaveTextContent("コピーしました"));
+    expect(statusOf(copyButton)).toHaveTextContent("コピーしました");
+  });
+
+  it("re-announces when the key is copied again", async () => {
+    await mountTokens();
+    vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+
+    await userEvent.click(document.querySelector("button.accent") as HTMLElement);
+    const copyButton = await createdKeyCopyButton();
+    const status = statusOf(copyButton) as Element;
+    const observed: string[] = [];
+    const observer = new MutationObserver(() => observed.push(status.textContent ?? ""));
+    observer.observe(status, { childList: true, characterData: true, subtree: true });
+
+    await userEvent.click(copyButton);
+    await waitFor(() => expect(status).toHaveTextContent("コピーしました"));
+    await userEvent.click(copyButton);
+    await waitFor(() =>
+      expect(observed.filter((text) => text === "コピーしました")).toHaveLength(2),
     );
+    observer.disconnect();
+
+    // The live region empties between announcements and after the label resets.
+    expect(observed).toContain("");
+    await waitFor(() => expect(copyButton).toHaveTextContent(/^コピー$/), { timeout: 3000 });
+    await waitFor(() => expect(status).toBeEmptyDOMElement());
   });
 
   it("selects the newly created key when the clipboard is unavailable", async () => {
@@ -128,22 +158,14 @@ describe("install guidance", () => {
     vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denied"));
 
     await userEvent.click(document.querySelector("button.accent") as HTMLElement);
-
-    await waitFor(() => {
-      expect(document.querySelector("code[data-created-token]")).toHaveTextContent(
-        "gqn_live_abc123",
-      );
-    });
-    const key = document.querySelector("code[data-created-token]") as HTMLElement;
-    const copyButton = key.parentElement?.querySelector("button") as HTMLElement;
+    const copyButton = await createdKeyCopyButton();
     await userEvent.click(copyButton);
 
     await waitFor(() => {
       expect(window.getSelection()?.toString()).toBe("gqn_live_abc123");
     });
-    expect(copyButton.parentElement?.querySelector('[role="status"]')).toHaveTextContent(
-      "コピーできないためテキストを選択しました",
-    );
+    await waitFor(() => expect(copyButton).toHaveTextContent("選択しました"));
+    expect(statusOf(copyButton)).toHaveTextContent("コピーできないためテキストを選択しました");
   });
 
   it("selects the command when the clipboard is unavailable", async () => {

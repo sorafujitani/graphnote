@@ -42,7 +42,6 @@ export function TokensView({ controller, onBack }: Props) {
               {state.created}
             </code>
             <CopyButton
-              text={state.created}
               targetRef={createdTokenRef}
               className="shrink-0 px-[0.6rem] py-[0.3rem] text-[0.78rem]"
             />
