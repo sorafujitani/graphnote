@@ -233,8 +233,13 @@
   height: 100%;
 }
 
+/* min-height is NOTE_MIN_HEIGHT: NodeResizer shrinks the untouched axis to
+   satisfy its own minimum when a card renders shorter than that, so a card
+   below it turns a sideways drag into a silent height and y change. A card
+   with a saved width but no saved height is content-sized too, so this must
+   sit on the base rule rather than the auto-sized one. */
 .note-card {
-  @apply relative isolate w-full min-w-[200px] max-w-[320px] overflow-hidden rounded-xl border border-line bg-surface px-3 py-[0.65rem] shadow-panel;
+  @apply relative isolate w-full min-h-[100px] min-w-[200px] max-w-[320px] overflow-hidden rounded-xl border border-line bg-surface px-3 py-[0.65rem] shadow-panel;
 }
 
 /* Keep auto-sized cards within what estimateNoteHeight assumes (MAX = 520)

@@ -10,7 +10,8 @@ import { afterEach } from "vite-plus/test";
 import { estimateNoteHeight } from "../../shared/estimateNoteHeight";
 import type { EdgeRecord, GraphDetail, NodeRecord } from "../../shared/types";
 import { GraphEditor } from "../pages/GraphEditor";
-import { stubFetch, type FetchStub } from "./api-stub";
+import { isValidNoteHeight, isValidNoteWidth } from "../../shared/noteSize";
+import { StubError, stubFetch, type FetchStub } from "./api-stub";
 // Layout is under test, so load the same CSS as the app (pulls in xyflow's).
 import "../index.css";
 
@@ -93,6 +94,15 @@ function stubApi(detail: Pick<GraphDetail, "nodes" | "edges">): ApiStub {
     if (path.startsWith(`/api/graphs/${GRAPH_ID}/nodes/`) && method === "PATCH") {
       const id = path.split("/").pop() ?? "";
       const existing = detail.nodes.find((item) => item.id === id) ?? note(id, 0, 0);
+      // Same size rejection as the worker, so any gesture that sends an
+      // out-of-range size fails its own test instead of only this file's.
+      const size = body as { width?: number | null; height?: number | null } | null;
+      if (size?.width != null && !isValidNoteWidth(size.width)) {
+        return new StubError(400, "invalid node width");
+      }
+      if (size?.height != null && !isValidNoteHeight(size.height)) {
+        return new StubError(400, "invalid node height");
+      }
       return { node: { ...existing, ...body } };
     }
     return undefined;
@@ -156,6 +166,19 @@ export function cardElement(id: string): HTMLElement {
   const card = nodeElement(id).querySelector<HTMLElement>(".note-card");
   if (!card) throw new Error(`node ${id} has no card`);
   return card;
+}
+
+/**
+ * Rendered node size in flow units. `getBoundingClientRect` is in screen px, so
+ * an assertion against a layout constant has to divide the zoom back out, and
+ * that leaves sub-pixel noise — hence the rounding.
+ */
+export function nodeFlowSize(id: string): { width: number; height: number } {
+  const viewport = document.querySelector<HTMLElement>(".react-flow__viewport");
+  if (!viewport) throw new Error("the canvas has no viewport");
+  const zoom = new DOMMatrixReadOnly(getComputedStyle(viewport).transform).a;
+  const box = nodeElement(id).getBoundingClientRect();
+  return { width: Math.round(box.width / zoom), height: Math.round(box.height / zoom) };
 }
 
 export function cardBox(id: string): DOMRect {

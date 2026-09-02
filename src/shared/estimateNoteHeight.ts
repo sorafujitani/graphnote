@@ -1,3 +1,5 @@
+import { NOTE_MIN_HEIGHT } from "./noteSize.js";
+
 /**
  * Terminal-style column count: CJK and other East Asian wide characters take
  * two columns, everything else one. The UI is Japanese-first, so counting
@@ -32,7 +34,8 @@ export function estimateNoteHeight(
   const TITLE_LINE = 22;
   const BODY_LINE = 19;
   const TITLE_BODY_GAP = 6;
-  const MIN = 96;
+  /** Must match the `.note-card` min-height in the UI CSS. */
+  const MIN = NOTE_MIN_HEIGHT;
   /** Must match the `.note-card` max-height clamp in the UI CSS. */
   const MAX = 520;
   /**

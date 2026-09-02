@@ -20,3 +20,11 @@ export function isValidNoteHeight(value: unknown): value is number {
     value <= NOTE_MAX_HEIGHT
   );
 }
+
+export function clampNoteWidth(value: number): number {
+  return Math.min(NOTE_MAX_WIDTH, Math.max(NOTE_MIN_WIDTH, value));
+}
+
+export function clampNoteHeight(value: number): number {
+  return Math.min(NOTE_MAX_HEIGHT, Math.max(NOTE_MIN_HEIGHT, value));
+}

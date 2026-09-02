@@ -21,6 +21,7 @@ import {
 import type { EdgeRecord, Graph, NodeRecord } from "../../shared/types";
 import { estimateNoteHeight } from "../../shared/estimateNoteHeight";
 import { placeChildPosition } from "../../shared/placeChild";
+import { clampNoteHeight, clampNoteWidth } from "../../shared/noteSize";
 import { reflowAroundNode } from "../../shared/reflowTree";
 import { isEditableTarget, isInteractiveTarget, nearestNodeId } from "../lib/keyboard";
 import { userMessage } from "../lib/userMessage";
@@ -1099,11 +1100,13 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
 
   const onNodeResize = useCallback(
     (nodeId: string, size: { x: number; y: number; width: number; height: number }) => {
+      // NodeResizer reports a size below the minimum when a side handle drags a
+      // card that renders shorter than NOTE_MIN_HEIGHT, and the API rejects it.
       const patch = {
         x: Math.round(size.x),
         y: Math.round(size.y),
-        width: Math.round(size.width),
-        height: Math.round(size.height),
+        width: clampNoteWidth(Math.round(size.width)),
+        height: clampNoteHeight(Math.round(size.height)),
       };
       // A hand-resized card must not bury its neighbours; slide them clear instead.
       const before = nodeRecordsRef.current.find((node) => node.id === nodeId);

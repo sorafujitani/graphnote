@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser/context";
+import { NOTE_MIN_HEIGHT } from "../../shared/noteSize";
 import {
   cardBox,
   cardCenter,
@@ -10,6 +11,7 @@ import {
   fieldEditor,
   link,
   mountEditor,
+  nodeFlowSize,
   note,
   portBox,
   portCenter,
@@ -427,6 +429,44 @@ describe("resizing a note", () => {
       expect(after.height - before.height).toBeGreaterThan(50);
     });
   });
+
+  for (const [label, size] of [
+    ["a content-sized note", {}],
+    ["a note with a saved width but no saved height", { width: 420, height: null }],
+  ] as const) {
+    it(`widens ${label} from a side handle without distorting it`, async () => {
+      // Below NOTE_MIN_HEIGHT, NodeResizer shrinks the axis the drag never
+      // touched to reach its own minimum: the API rejected the height, and the
+      // card also drifted. Both cases render short, so both must be covered.
+      const api = await mountEditor([{ ...note("n1", 0, 0, "短い"), ...size }]);
+      await userEvent.click(cardElement("n1"));
+      const node = cardElement("n1").closest<HTMLElement>(".react-flow__node");
+      await waitFor(() => expect(node).toHaveClass("selected"));
+      expect(nodeFlowSize("n1").height).toBeGreaterThanOrEqual(NOTE_MIN_HEIGHT);
+      const line = node?.querySelector<HTMLElement>(".react-flow__resize-control.line.right");
+      if (!line) throw new Error("selected note has no right resize line");
+      const box = line.getBoundingClientRect();
+      const dropTarget = document.createElement("div");
+      Object.assign(dropTarget.style, {
+        position: "fixed",
+        left: `${box.x + box.width / 2 + 100}px`,
+        top: `${box.y + box.height / 2}px`,
+        width: "2px",
+        height: "2px",
+      });
+      document.body.append(dropTarget);
+
+      await userEvent.dragAndDrop(line, dropTarget);
+      dropTarget.remove();
+
+      await waitFor(() => expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(1));
+      const saved = api.matching("PATCH", "/nodes/n1").at(-1)?.body;
+      expect(saved?.width).toBeGreaterThan(280);
+      expect(saved?.height).toBeGreaterThanOrEqual(NOTE_MIN_HEIGHT);
+      expect(saved?.y).toBe(0);
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+  }
 
   it("pushes the sibling below out of the way when a card grows", async () => {
     const api = await mountEditor(

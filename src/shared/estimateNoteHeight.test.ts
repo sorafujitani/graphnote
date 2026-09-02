@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { estimateNoteHeight } from "./estimateNoteHeight";
+import { NOTE_MIN_HEIGHT } from "./noteSize";
 
 describe("estimateNoteHeight", () => {
   it("grows with body lines", () => {
@@ -23,8 +24,8 @@ describe("estimateNoteHeight column counting", () => {
     expect(estimateNoteHeight("t", "x".repeat(20000))).toBe(520);
   });
 
-  it("stays at the minimum for empty content", () => {
-    expect(estimateNoteHeight("", "")).toBe(96);
+  it("stays at the rendered minimum for empty content", () => {
+    expect(estimateNoteHeight("", "")).toBe(NOTE_MIN_HEIGHT);
   });
 
   it("uses a manually widened card's available width", () => {

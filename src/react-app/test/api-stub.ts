@@ -11,6 +11,14 @@ export type StubRequest = {
   body: Record<string, unknown> | null;
 };
 
+/** A non-2xx answer, mirroring the worker's `{ error }` body. */
+export class StubError {
+  constructor(
+    readonly status: number,
+    readonly error: string,
+  ) {}
+}
+
 export type FetchStub = {
   /** Every request the app made, in order. */
   calls: StubRequest[];
@@ -22,7 +30,9 @@ export type FetchStub = {
 /**
  * `handle` returns the JSON body for a request, or `undefined` to fall through to
  * `{ ok: true }` — an unhandled call then fails an assertion instead of the
- * transport, which is far easier to read in a test failure.
+ * transport, which is far easier to read in a test failure. Returning a
+ * `StubError` answers with that status, so a test can exercise the rejection
+ * paths the worker really has.
  */
 export function stubFetch(handle: (request: StubRequest) => unknown): FetchStub {
   const realFetch = globalThis.fetch;
@@ -41,8 +51,9 @@ export function stubFetch(handle: (request: StubRequest) => unknown): FetchStub 
 
     if (!request.path.startsWith("/api/")) return realFetch(input, init);
     const data = handle(request) ?? { ok: true };
-    return new Response(JSON.stringify(data), {
-      status: 200,
+    const failure = data instanceof StubError ? data : null;
+    return new Response(JSON.stringify(failure ? { error: failure.error } : data), {
+      status: failure ? failure.status : 200,
       headers: { "Content-Type": "application/json" },
     });
   }) as typeof fetch;
