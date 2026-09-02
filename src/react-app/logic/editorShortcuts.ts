@@ -48,7 +48,7 @@ export const EDITOR_SHORTCUT_GROUPS: Array<{ label: string; items: ShortcutItem[
     label: "ナビゲーション",
     items: [
       { action: "操作ヘルプ", keys: ["?"] },
-      { action: "ノート一覧へ戻る", keys: ["Mod", "["] },
+      { action: "詳細からノート一覧へ戻る", keys: ["Mod", "["] },
       { action: "バックアップを保存", keys: ["Mod", "E"] },
     ],
   },

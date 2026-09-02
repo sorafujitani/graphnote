@@ -106,9 +106,67 @@ describe("session recovery", () => {
     expect(screen.getByText("Sora")).toBeInTheDocument();
     expect(screen.getByText("sora@example.com")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "使い方" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("操作ヘルプ");
+    const help = screen.getByRole("dialog");
+    expect(help).toHaveTextContent("操作ヘルプ");
+    expect(help).toHaveTextContent("一覧でノートを選ぶ");
+    expect(help).toHaveTextContent("一覧で選んだノートを開く");
+    expect(help).toHaveTextContent("詳細からノート一覧へ戻る");
     await userEvent.click(screen.getByRole("button", { name: "閉じる" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("キーボードで一覧からノートを開き、詳細から一覧へ戻れる", async () => {
+    const graphs = [
+      {
+        id: "g1",
+        owner_id: "u1",
+        title: "一件目",
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+        node_count: 0,
+        edge_count: 0,
+      },
+      {
+        id: "g2",
+        owner_id: "u1",
+        title: "二件目",
+        created_at: "2026-01-02T00:00:00.000Z",
+        updated_at: "2026-01-02T00:00:00.000Z",
+        node_count: 0,
+        edge_count: 0,
+      },
+    ];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const target =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const path = new URL(target, location.origin).pathname;
+      if (path === "/api/me") {
+        return response(200, {
+          authenticated: true,
+          user: { id: "u1", name: "Sora", email: "sora@example.com", image: null },
+        });
+      }
+      if (path === "/api/graphs") return response(200, { graphs });
+      if (path === "/api/graphs/g2") {
+        return response(200, { graph: graphs[1], nodes: [], edges: [] });
+      }
+      return response(200, { ok: true });
+    }) as typeof fetch;
+
+    render(<App />);
+    await screen.findByText("一件目");
+    expect(screen.getByText("↑↓で選択 / Enterで開く")).toBeInTheDocument();
+
+    await userEvent.keyboard("{ArrowDown}");
+    expect(screen.getByText("二件目").closest("article")).toHaveClass("ring-accent");
+    await userEvent.keyboard("{Enter}");
+
+    await waitFor(() => expect(window.location.pathname).toBe("/g/g2"));
+    expect(await screen.findByDisplayValue("二件目")).toBeInTheDocument();
+
+    await userEvent.keyboard("{Control>}[[{/Control}");
+    await waitFor(() => expect(window.location.pathname).toBe("/"));
+    expect(await screen.findByText("一件目")).toBeInTheDocument();
   });
 
   it("renders a 404 screen for an unknown authenticated route", async () => {

@@ -9,15 +9,25 @@ const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", {
   timeStyle: "short",
 });
 
+const LIST_SHORTCUTS = [
+  { action: "一覧でノートを選ぶ", keys: ["↑", "↓"] },
+  { action: "一覧で選んだノートを開く", keys: ["Enter"] },
+];
+
 export function EditorHelpDialog({ onClose }: { onClose: () => void }) {
+  const shortcutGroups = [
+    { label: "ノート一覧", items: LIST_SHORTCUTS },
+    ...EDITOR_SHORTCUT_GROUPS,
+  ];
+
   return (
     <DialogFrame
       title="操作ヘルプ"
-      description="キャンバスを素早く育てるための操作一覧"
+      description="ノート一覧とキャンバスの操作一覧"
       onClose={onClose}
     >
       <div className="grid max-h-[calc(100vh-9rem)] gap-6 overflow-y-auto p-5 sm:grid-cols-2">
-        {EDITOR_SHORTCUT_GROUPS.map((group) => (
+        {shortcutGroups.map((group) => (
           <section key={group.label}>
             <h3 className="mt-0 mb-2 text-xs font-semibold tracking-[0.08em] text-accent">
               {group.label}

@@ -257,6 +257,10 @@ export function GraphListView({
         </div>
       ) : null}
 
+      {state.graphs.length > 0 ? (
+        <p className="m-0 mb-2 px-1 text-xs text-muted">↑↓で選択 / Enterで開く</p>
+      ) : null}
+
       <div className="grid gap-3" data-note-list>
         {state.graphs.map((graph, index) => {
           const active = index === state.activeIndex;
