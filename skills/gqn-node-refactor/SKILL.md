@@ -37,7 +37,7 @@ Follow the `gqn` skill for auth/targets.
 - All detail nodes in one tall column while parents sit in a short column (mismatched bands)
 - Random `x/y` with crossing edges when a tidy tree layout would do
 
-## Layout constants (default)
+## Layout constants (default; `gqn fmt` is the source of truth, hand placement approximates it)
 
 | Symbol |          Value | Meaning                                                |
 | ------ | -------------: | ------------------------------------------------------ |

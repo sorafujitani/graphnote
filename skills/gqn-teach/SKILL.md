@@ -55,21 +55,9 @@ Bad → Good:
 - Edges (parent→child) = “contains / decomposes into / leads to”.
 - Canvas glance shows structure; bodies hold **compact understanding aids** (definition fragment, command, constraint, official URL, minimal example).
 
-## Anti-patterns (do not)
+## Anti-patterns
 
-- Essay paragraphs in `--body` (no “In this section…”, no pasted article)
-- One giant root with a wall of markdown
-- Restating the whole source article inside nodes
-- Orphan nodes with no parent link (except the single root)
-- Metaphorical / catchy Japanese titles (see Language)
-- Leaving every body empty when official docs or a 1-line cue would unlock the node
-- Invented / guessed documentation URLs (only real, verified links)
-- Pasting documentation prose or its full sample into a body; summarize it and write the smallest example that teaches this node
-- Putting multiple variants, setup boilerplate, and expected output in one card until it becomes a mini article
-- Creating all children with default auto-y so one parent sits far above a long vertical “rail” of edges — place siblings with explicit `--x`/`--y` near the parent, or `gqn fmt` afterward
-- **Over-depth** (abstract→concrete→ultra-detail→flag→option…) as a left-to-right snake
-- **Over-breadth** (10+ siblings under one parent) as a tall stack — regroup or facet instead
-- Fake mid-level nodes that only restate the parent (“詳細”, “ポイント”, “概要”) without a real partition
+Essay bodies or pasted source text; orphan nodes; invented URLs; over-depth snakes and over-breadth stacks; fake mid-level nodes that only restate the parent (“詳細”, “ポイント”). The sections below give the positive rule for each.
 
 ## Abstract → concrete (judge before creating nodes)
 
@@ -123,7 +111,7 @@ Prefer **balanced bush**: a few L1 columns, each with a short sibling stack — 
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `title` | Plain noun/verb phrase, ≤ ~40 chars. Primary label on the canvas.                                                                                                        |
 | `body`  | Short Markdown cues that help the user _understand, verify, or try_. Usually 2–8 visual lines; one link and/or one tiny code block. Empty only when the title is enough. |
-| layout  | Root left; each subtree in its own vertical band; siblings near their parent (`Δx≈280`, `Δy≈150` per sibling).                                                           |
+| layout  | Root left; each subtree in its own vertical band; siblings near their parent (`Δx≈300`, `Δy≈160` per sibling — the same constants as `gqn-node-refactor`; `gqn fmt` is the source of truth).                                                           |
 
 ### When to fill `body`
 
@@ -202,9 +190,9 @@ gqn --prod nodes create <graphId> --title '<Topic>' --x 80 --y 400 --body $'- [s
 8. **Create children** — prefer `--parent` **and** explicit coordinates so each facet’s children sit in that facet’s band:
 
 ```bash
-# L1 facet i at y = 80 + i*180 ; its L2 at x+280, y + j*140
-gqn --prod nodes create <graphId> --title '<Facet>' --parent <rootId> --x 360 --y 80
-gqn --prod nodes create <graphId> --title '<Unit>' --parent <facetId> --x 640 --y 80 \
+# L1 facet i at y = 80 + i*160 ; its L2 at x+300, y + j*160 (hand placement only approximates `gqn fmt`, run it in step 10)
+gqn --prod nodes create <graphId> --title '<Facet>' --parent <rootId> --x 380 --y 80
+gqn --prod nodes create <graphId> --title '<Unit>' --parent <facetId> --x 680 --y 80 \
   --body $'- plain cue\n- [official name](https://example.com/docs/...)'
 ```
 
