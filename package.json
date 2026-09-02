@@ -20,7 +20,7 @@
     "check": "pnpm run typecheck && pnpm run lint && pnpm run fmt:check && pnpm run knip && pnpm run test:coverage && pnpm run build && wrangler deploy --dry-run",
     "db:migrate:local": "wrangler d1 migrations apply graphnote --local",
     "db:migrate:remote": "wrangler d1 migrations apply graphnote --remote",
-    "deploy": "pnpm run db:migrate:remote && wrangler deploy",
+    "deploy": "pnpm run build && pnpm run db:migrate:remote && wrangler deploy",
     "dev": "pnpm run db:migrate:local && vp dev",
     "fix": "pnpm run fmt && pnpm run lint:fix",
     "fmt": "vp fmt . --write",
