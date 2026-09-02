@@ -11,6 +11,8 @@ type NoteData = {
   activeParent?: boolean;
   /** Editor the canvas asked to open; the nonce lets the same one be re-asked. */
   editRequest?: Pick<EditRequest, "field" | "nonce">;
+  /** Descendants hidden behind this card; absent when the branch is open. */
+  collapsedCount?: number;
 };
 
 /** Typed React Flow node for this app (xyflow `Node` + our note data). */

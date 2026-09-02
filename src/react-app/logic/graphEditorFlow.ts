@@ -12,7 +12,11 @@ export const EDGE_MARKER = {
   color: EDGE_COLOR,
 };
 
-export function presentEdges(edges: EdgeRecord[], selectedEdgeIds: Set<string>): Edge[] {
+export function presentEdges(
+  edges: EdgeRecord[],
+  selectedEdgeIds: Set<string>,
+  hiddenNodeIds: Set<string> = new Set(),
+): Edge[] {
   return edges.map((edge) => {
     const hot = selectedEdgeIds.has(edge.id);
     return {
@@ -20,6 +24,7 @@ export function presentEdges(edges: EdgeRecord[], selectedEdgeIds: Set<string>):
       source: edge.source_id,
       target: edge.target_id,
       label: edge.label || undefined,
+      hidden: hiddenNodeIds.has(edge.source_id) || hiddenNodeIds.has(edge.target_id),
       selected: selectedEdgeIds.has(edge.id),
       animated: false,
       // Bezier avoids smoothstep's shared vertical "rails" when siblings fan out.
@@ -40,7 +45,8 @@ function sameData(a: NoteData, b: NoteData): boolean {
     a.manuallySized === b.manuallySized &&
     a.activeParent === b.activeParent &&
     a.editRequest?.nonce === b.editRequest?.nonce &&
-    a.editRequest?.field === b.editRequest?.field
+    a.editRequest?.field === b.editRequest?.field &&
+    a.collapsedCount === b.collapsedCount
   );
 }
 
@@ -50,12 +56,22 @@ function sameData(a: NoteData, b: NoteData): boolean {
  * object drops `measured`/`handleBounds` and forces every card through a
  * re-measure, which is why edges used to flicker on hover.
  */
+export type Visibility = {
+  /** Cards inside a collapsed branch. */
+  hidden: Set<string>;
+  /** Collapsed card → how many descendants it hides. */
+  collapsedCounts: Map<string, number>;
+};
+
+const EVERYTHING_VISIBLE: Visibility = { hidden: new Set(), collapsedCounts: new Map() };
+
 export function presentNodes(
   records: NodeRecord[],
   selectedIds: string[],
   parentId: string | null,
   editRequest: EditRequest | null,
   previousNodes: AppNode[],
+  visibility: Visibility = EVERYTHING_VISIBLE,
 ): AppNode[] {
   const selectedSet = new Set(selectedIds);
   const prevById = new Map(previousNodes.map((node) => [node.id, node] as const));
@@ -70,6 +86,8 @@ export function presentNodes(
             ...(node.width === null ? {} : { width: node.width }),
             ...(node.height === null ? {} : { height: node.height }),
           };
+    const collapsedCount = visibility.collapsedCounts.get(node.id);
+    const hidden = visibility.hidden.has(node.id);
     const data: NoteData = {
       title: node.title,
       body: node.body,
@@ -78,10 +96,12 @@ export function presentNodes(
       ...(editRequest?.nodeId === node.id
         ? { editRequest: { field: editRequest.field, nonce: editRequest.nonce } }
         : {}),
+      ...(collapsedCount ? { collapsedCount } : {}),
     };
     if (
       prev &&
       prev.selected === selected &&
+      Boolean(prev.hidden) === hidden &&
       sameData(prev.data, data) &&
       prev.style?.width === style?.width &&
       prev.style?.height === style?.height
@@ -94,6 +114,7 @@ export function presentNodes(
       ...(prev ?? { id: node.id, type: "note" as const }),
       position: prev?.position ?? { x: node.x, y: node.y },
       selected,
+      hidden,
       data,
     };
     // Replace, not merge: a dimension reset to null must not leave the old

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { EdgeRecord } from "../shared/types";
+import type { EdgeRecord } from "./types";
 import { computeCascade } from "./cascade";
 
 function edge(id: string, source_id: string, target_id: string): EdgeRecord {

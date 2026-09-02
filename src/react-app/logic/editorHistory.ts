@@ -1,15 +1,20 @@
-import type { NodeRecord } from "../../shared/types";
+import type { EdgeRecord, NodeRecord } from "../../shared/types";
 
 export type NodeVersion = Pick<
   NodeRecord,
   "id" | "title" | "body" | "x" | "y" | "width" | "height"
 >;
 
-export type HistoryEntry = {
-  label: string;
-  before: NodeVersion[];
-  after: NodeVersion[];
+/** Records that left or joined the canvas; the same set is trashed and restored. */
+type PresenceEntry = {
+  nodes: NodeRecord[];
+  edges: EdgeRecord[];
 };
+
+export type HistoryEntry =
+  | { kind: "update"; label: string; before: NodeVersion[]; after: NodeVersion[] }
+  | ({ kind: "create"; label: string } & PresenceEntry)
+  | ({ kind: "delete"; label: string } & PresenceEntry);
 
 export type EditorHistory = {
   past: HistoryEntry[];
@@ -47,26 +52,52 @@ export function makeHistoryEntry(
     );
   if (pairs.length === 0) return null;
   return {
+    kind: "update",
     label,
     before: pairs.map((pair) => nodeVersion(pair.before)),
     after: pairs.map((pair) => nodeVersion(pair.after)),
   };
 }
 
+export function makePresenceEntry(
+  kind: "create" | "delete",
+  label: string,
+  nodes: NodeRecord[],
+  edges: EdgeRecord[],
+): HistoryEntry | null {
+  if (nodes.length === 0 && edges.length === 0) return null;
+  return { kind, label, nodes, edges };
+}
+
 export function recordHistory(history: EditorHistory, entry: HistoryEntry): EditorHistory {
   return { past: [...history.past.slice(-49), entry], future: [] };
+}
+
+/** What applying `entry` in `direction` must do to the canvas. */
+export type HistoryOperation =
+  | { type: "apply"; versions: NodeVersion[] }
+  | ({ type: "restore" } & PresenceEntry)
+  | ({ type: "trash" } & PresenceEntry);
+
+function historyOperation(entry: HistoryEntry, direction: "undo" | "redo"): HistoryOperation {
+  if (entry.kind === "update") {
+    return { type: "apply", versions: direction === "undo" ? entry.before : entry.after };
+  }
+  const presence = { nodes: entry.nodes, edges: entry.edges };
+  const bringBack = (entry.kind === "delete") === (direction === "undo");
+  return bringBack ? { type: "restore", ...presence } : { type: "trash", ...presence };
 }
 
 export function historyStep(
   history: EditorHistory,
   direction: "undo" | "redo",
-): { entry: HistoryEntry; target: NodeVersion[]; next: EditorHistory } | null {
+): { entry: HistoryEntry; operation: HistoryOperation; next: EditorHistory } | null {
   if (direction === "undo") {
     const entry = history.past.at(-1);
     if (!entry) return null;
     return {
       entry,
-      target: entry.before,
+      operation: historyOperation(entry, "undo"),
       next: { past: history.past.slice(0, -1), future: [entry, ...history.future] },
     };
   }
@@ -74,7 +105,7 @@ export function historyStep(
   if (!entry) return null;
   return {
     entry,
-    target: entry.after,
+    operation: historyOperation(entry, "redo"),
     next: { past: [...history.past, entry], future: history.future.slice(1) },
   };
 }

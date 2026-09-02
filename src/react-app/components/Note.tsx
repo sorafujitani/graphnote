@@ -25,7 +25,7 @@ function stopMouse(event: MouseEvent) {
 }
 
 export function Note({ id, data, selected }: NodeProps<AppNode>) {
-  const { onChange, onRequestChild, onResize } = useNoteActions();
+  const { onChange, onRequestChild, onResize, onToggleTask, onToggleCollapse } = useNoteActions();
   const [title, setTitle] = useState(data.title);
   const [body, setBody] = useState(data.body);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -170,6 +170,21 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
         onResizeEnd={(_, size) => onResize(id, size)}
       />
       {data.activeParent ? <div className="note-parent-badge">Tabで子ノード</div> : null}
+      {data.collapsedCount ? (
+        <button
+          type="button"
+          className="note-collapsed-badge nodrag"
+          aria-label={`${data.collapsedCount}件の下位ノードを開く`}
+          onMouseDown={stopMouse}
+          onDoubleClick={stopMouse}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleCollapse(id);
+          }}
+        >
+          +{data.collapsedCount}
+        </button>
+      ) : null}
       {/* `nowheel` only while the card actually overflows: React Flow zooms on
           wheel unless the target opts out, and an always-on opt-out would kill
           zooming over every card. */}
@@ -247,7 +262,12 @@ export function Note({ id, data, selected }: NodeProps<AppNode>) {
             }}
           >
             {data.body.trim() ? (
-              <MarkdownContent className="note-md">{data.body}</MarkdownContent>
+              <MarkdownContent
+                className="note-md"
+                onToggleTask={(index) => onToggleTask(id, index)}
+              >
+                {data.body}
+              </MarkdownContent>
             ) : (
               <span className="note-placeholder">メモを書く…</span>
             )}

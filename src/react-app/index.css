@@ -290,6 +290,47 @@
   outline-offset: 3px;
 }
 
+.note-collapsed-badge {
+  /* Bottom centre: the corners belong to the resize handles when selected. */
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  transform: translateX(-50%);
+  /* Above the resize lines (z-index 4) so the badge stays clickable when selected. */
+  z-index: 5;
+  min-width: 28px;
+  padding: 2px 8px;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.note-collapsed-badge:hover {
+  background: var(--color-accent-soft);
+}
+
+.note-md img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.note-md input[type="checkbox"] {
+  margin: 0 0.4em 0 0;
+  vertical-align: -0.1em;
+  accent-color: var(--color-accent);
+}
+
+.note-md input[type="checkbox"]:not(:disabled) {
+  cursor: pointer;
+}
+
 .note-parent-badge {
   @apply pointer-events-none absolute -top-[22px] right-0 whitespace-nowrap rounded-md border border-line bg-surface px-[0.35rem] py-[0.1rem] font-mono text-[0.68rem] text-accent;
 }

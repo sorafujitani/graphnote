@@ -1,13 +1,19 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import type { PublicUser } from "../../shared/types";
 
 type Props = {
+  /** Signed-in account shown at the top so the user can tell which one this is. */
+  user?: PublicUser | null;
   children: (close: () => void) => ReactNode;
 };
 
-export function AppMenu({ children }: Props) {
+const ITEM_SELECTOR = "button:not([disabled]), a[href]";
+
+export function AppMenu({ user, children }: Props) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
 
   useEffect(() => {
@@ -15,13 +21,14 @@ export function AppMenu({ children }: Props) {
     const closeOutside = (event: PointerEvent) => {
       if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
     };
-    const closeWithEscape = (event: KeyboardEvent) => {
+    const closeWithEscape = (event: KeyboardEvent | globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setOpen(false);
       buttonRef.current?.focus();
     };
     document.addEventListener("pointerdown", closeOutside);
     document.addEventListener("keydown", closeWithEscape);
+    panelRef.current?.querySelector<HTMLElement>(ITEM_SELECTOR)?.focus();
     return () => {
       document.removeEventListener("pointerdown", closeOutside);
       document.removeEventListener("keydown", closeWithEscape);
@@ -30,6 +37,16 @@ export function AppMenu({ children }: Props) {
 
   const close = () => setOpen(false);
 
+  function moveFocus(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const items = [...(panelRef.current?.querySelectorAll<HTMLElement>(ITEM_SELECTOR) ?? [])];
+    if (items.length === 0) return;
+    event.preventDefault();
+    const index = items.indexOf(document.activeElement as HTMLElement);
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    items[(index + step + items.length) % items.length]?.focus();
+  }
+
   return (
     <div ref={containerRef} className="relative shrink-0">
       <button
@@ -37,7 +54,7 @@ export function AppMenu({ children }: Props) {
         className="btn btn-secondary grid size-10 place-items-center px-0 py-0"
         type="button"
         aria-label="メニュー"
-        aria-haspopup="true"
+        aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((current) => !current)}
@@ -50,9 +67,24 @@ export function AppMenu({ children }: Props) {
       </button>
       {open ? (
         <div
+          ref={panelRef}
           id={panelId}
-          className="panel absolute top-full right-0 z-30 mt-2 grid min-w-48 gap-1 p-2"
+          role="menu"
+          aria-label="メニュー"
+          className="panel absolute top-full right-0 z-30 mt-2 grid min-w-56 gap-1 p-2"
+          onKeyDown={moveFocus}
         >
+          {user ? (
+            <div className="flex items-center gap-2 px-3 pt-1 pb-2">
+              {user.image ? (
+                <img src={user.image} alt="" className="size-7 shrink-0 rounded-full" />
+              ) : null}
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold">{user.name}</div>
+                <div className="truncate text-xs text-muted">{user.email}</div>
+              </div>
+            </div>
+          ) : null}
           {children(close)}
         </div>
       ) : null}

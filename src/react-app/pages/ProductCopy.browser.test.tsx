@@ -40,9 +40,11 @@ describe("customer-facing product copy", () => {
     });
     render(
       <GraphList
+        user={null}
         onOpen={() => {}}
         onLogout={() => {}}
         onOpenTokens={() => {}}
+        onOpenHelp={() => {}}
         onDeleteAccount={() => {
           deleteRequested = true;
         }}

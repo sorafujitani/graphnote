@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { CommandLine } from "../components/CommandLine";
+import { ConfirmDialog } from "../components/Dialog";
 import { CopyButton } from "../components/CopyButton";
 import type { TokensController } from "../logic/useTokens";
 
@@ -143,6 +144,15 @@ export function TokensView({ controller, onBack }: Props) {
           </a>
         </div>
       </details>
+      {state.confirmDialog ? (
+        <ConfirmDialog
+          title={state.confirmDialog.title}
+          message={state.confirmDialog.message}
+          confirmLabel={state.confirmDialog.confirmLabel}
+          danger={state.confirmDialog.danger}
+          onResolve={state.confirmDialog.resolve}
+        />
+      ) : null}
     </div>
   );
 }

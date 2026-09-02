@@ -46,4 +46,8 @@ export function exportRateKey(userId: string): string {
   return `export:${userId}`;
 }
 
+export function searchRateKey(userId: string): string {
+  return `search:${userId}`;
+}
+
 export { RATE_LIMIT };

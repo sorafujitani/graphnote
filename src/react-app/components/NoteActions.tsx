@@ -4,6 +4,8 @@ export type NoteActions = {
   onChange: (nodeId: string, patch: { title?: string; body?: string }) => void;
   onResize: (nodeId: string, size: { x: number; y: number; width: number; height: number }) => void;
   onRequestChild: (nodeId: string) => void;
+  onToggleTask: (nodeId: string, index: number) => void;
+  onToggleCollapse: (nodeId: string) => void;
 };
 
 const NoteActionsContext = createContext<NoteActions | null>(null);

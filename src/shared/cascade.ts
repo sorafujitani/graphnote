@@ -1,4 +1,4 @@
-import type { CascadeResult, EdgeRecord } from "../shared/types";
+import type { CascadeResult, EdgeRecord } from "./types.js";
 
 export function computeCascade(
   edges: EdgeRecord[],

@@ -11,7 +11,7 @@ import { estimateNoteHeight } from "../../shared/estimateNoteHeight";
 import type { EdgeRecord, GraphDetail, NodeRecord } from "../../shared/types";
 import { GraphEditor } from "../pages/GraphEditor";
 import { isValidNoteHeight, isValidNoteWidth } from "../../shared/noteSize";
-import { StubError, stubFetch, type FetchStub } from "./api-stub";
+import { StubError, stubFetch, type FetchStub, type StubRequest } from "./api-stub";
 // Layout is under test, so load the same CSS as the app (pulls in xyflow's).
 import "../index.css";
 
@@ -50,12 +50,18 @@ export function link(id: string, source_id: string, target_id: string): EdgeReco
 }
 
 /** Routes `fetch` to an in-memory graph. */
-function stubApi(detail: Pick<GraphDetail, "nodes" | "edges">): ApiStub {
+/** Answers a request ahead of the built-in stub; `undefined` falls through. */
+export type ApiOverride = (request: StubRequest) => unknown;
+
+function stubApi(detail: Pick<GraphDetail, "nodes" | "edges">, override?: ApiOverride): ApiStub {
   const createdEdges: string[] = [];
   let edgeSeq = detail.edges.length;
   let nodeSeq = detail.nodes.length;
 
-  const stub = stubFetch(({ method, path, body }) => {
+  const stub = stubFetch((request) => {
+    const overridden = override?.(request);
+    if (overridden !== undefined) return overridden;
+    const { method, path, body } = request;
     if (path === `/api/graphs/${GRAPH_ID}` && method === "GET") {
       return {
         graph: { id: GRAPH_ID, owner_id: "u1", title: "Canvas", created_at: TS, updated_at: TS },
@@ -68,6 +74,36 @@ function stubApi(detail: Pick<GraphDetail, "nodes" | "edges">): ApiStub {
       createdEdges.push(`${payload.source_id}->${payload.target_id}`);
       edgeSeq += 1;
       return { edge: link(`e${edgeSeq}`, payload.source_id, payload.target_id) };
+    }
+    if (path === `/api/graphs/${GRAPH_ID}/nodes/delete` && method === "POST") {
+      const payload = body as { ids: string[] };
+      const ids = new Set(payload.ids);
+      const edgeIds = detail.edges
+        .filter((edge) => ids.has(edge.source_id) || ids.has(edge.target_id))
+        .map((edge) => edge.id);
+      return { deletedNodeIds: payload.ids, deletedEdgeIds: edgeIds };
+    }
+    if (path === `/api/graphs/${GRAPH_ID}/nodes/restore` && method === "POST") {
+      const payload = body as { nodeIds: string[]; edgeIds: string[] };
+      return {
+        nodes: payload.nodeIds.map(
+          (id) => detail.nodes.find((node) => node.id === id) ?? note(id, 0, 0),
+        ),
+        edges: payload.edgeIds.flatMap((id) => detail.edges.filter((edge) => edge.id === id)),
+      };
+    }
+    if (path === `/api/graphs/${GRAPH_ID}/batch` && method === "POST") {
+      const payload = body as { nodes: Array<Partial<NodeRecord>> };
+      const nodes = payload.nodes.map((item) => {
+        nodeSeq += 1;
+        return note(`n${nodeSeq}`, item.x ?? 0, item.y ?? 0, item.title ?? "", item.body ?? "");
+      });
+      return { nodes, edges: [], ids: {} };
+    }
+    if (path.startsWith(`/api/graphs/${GRAPH_ID}/edges/`) && method === "PATCH") {
+      const id = path.split("/").pop() ?? "";
+      const existing = detail.edges.find((edge) => edge.id === id) ?? link(id, "", "");
+      return { edge: { ...existing, ...body } };
     }
     if (path === `/api/graphs/${GRAPH_ID}/nodes` && method === "POST") {
       const payload = body as Partial<NodeRecord>;
@@ -125,11 +161,20 @@ afterEach(() => {
  * Mounts the real editor and waits until React Flow has measured the notes:
  * gestures fired before that hit unmeasured handles and silently do nothing.
  */
-export async function mountEditor(nodes: NodeRecord[], edges: EdgeRecord[] = []): Promise<ApiStub> {
-  activeStub = stubApi({ nodes, edges });
+export async function mountEditor(
+  nodes: NodeRecord[],
+  edges: EdgeRecord[] = [],
+  override?: ApiOverride,
+): Promise<ApiStub> {
+  activeStub = stubApi({ nodes, edges }, override);
   render(
     <div style={{ position: "fixed", inset: 0 }}>
-      <GraphEditor graphId={GRAPH_ID} onBack={() => {}} onLogout={() => {}} />
+      <GraphEditor
+        graphId={GRAPH_ID}
+        onBack={() => {}}
+        onLogout={() => {}}
+        onOpenTokens={() => {}}
+      />
     </div>,
   );
 

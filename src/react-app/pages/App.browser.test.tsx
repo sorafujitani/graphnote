@@ -17,6 +17,7 @@ afterEach(() => {
   cleanup();
   globalThis.fetch = realFetch;
   window.history.replaceState(null, "", "/");
+  document.title = "graphnote";
 });
 
 describe("session recovery", () => {
@@ -79,5 +80,122 @@ describe("session recovery", () => {
 
     await waitFor(() => expect(screen.getByDisplayValue("Recovered")).toBeInTheDocument());
     expect(window.location.pathname).toBe("/g/g1");
+    await waitFor(() => expect(document.title).toBe("Recovered · graphnote"));
+  });
+
+  it("shows the authenticated account and opens help from the list menu", async () => {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const target =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const path = new URL(target, location.origin).pathname;
+      if (path === "/api/me") {
+        return response(200, {
+          authenticated: true,
+          user: { id: "u1", name: "Sora", email: "sora@example.com", image: null },
+        });
+      }
+      if (path === "/api/graphs") return response(200, { graphs: [] });
+      return response(200, { ok: true });
+    }) as typeof fetch;
+
+    render(<App />);
+    await screen.findByText("最初のノートを作りましょう");
+    expect(document.title).toBe("あなたのノート · graphnote");
+
+    await userEvent.click(screen.getByRole("button", { name: "メニュー" }));
+    expect(screen.getByText("Sora")).toBeInTheDocument();
+    expect(screen.getByText("sora@example.com")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "使い方" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("操作ヘルプ");
+    await userEvent.click(screen.getByRole("button", { name: "閉じる" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("renders a 404 screen for an unknown authenticated route", async () => {
+    window.history.replaceState(null, "", "/unknown");
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const target =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const path = new URL(target, location.origin).pathname;
+      if (path === "/api/me") {
+        return response(200, {
+          authenticated: true,
+          user: { id: "u1", name: "Sora", email: "sora@example.com", image: null },
+        });
+      }
+      if (path === "/api/graphs") return response(200, { graphs: [] });
+      return response(200, { ok: true });
+    }) as typeof fetch;
+
+    render(<App />);
+    expect(
+      await screen.findByRole("heading", { name: "ページが見つかりません" }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(document.title).toBe("ページが見つかりません · graphnote"));
+
+    await userEvent.click(screen.getByRole("button", { name: "ノート一覧へ" }));
+    await screen.findByText("最初のノートを作りましょう");
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("focuses a node named by the deep-link query", async () => {
+    window.history.replaceState(null, "", "/g/g1?node=n2");
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const target =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const path = new URL(target, location.origin).pathname;
+      if (path === "/api/me") {
+        return response(200, {
+          authenticated: true,
+          user: { id: "u1", name: "Sora", email: "sora@example.com", image: null },
+        });
+      }
+      if (path === "/api/graphs/g1") {
+        return response(200, {
+          graph: {
+            id: "g1",
+            owner_id: "u1",
+            title: "Deep link",
+            created_at: "2026-01-01T00:00:00.000Z",
+            updated_at: "2026-01-01T00:00:00.000Z",
+          },
+          nodes: [
+            {
+              id: "n1",
+              graph_id: "g1",
+              title: "One",
+              body: "",
+              x: 0,
+              y: 0,
+              width: null,
+              height: null,
+              created_at: "2026-01-01T00:00:00.000Z",
+              updated_at: "2026-01-01T00:00:00.000Z",
+            },
+            {
+              id: "n2",
+              graph_id: "g1",
+              title: "Two",
+              body: "",
+              x: 520,
+              y: 40,
+              width: null,
+              height: null,
+              created_at: "2026-01-01T00:00:00.000Z",
+              updated_at: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+          edges: [],
+        });
+      }
+      return response(200, { ok: true });
+    }) as typeof fetch;
+
+    render(<App />);
+    await waitFor(() => {
+      expect(document.querySelector('[data-id="n2"] .note-card')).toHaveClass("is-active");
+    });
+    expect(document.title).toBe("Deep link · graphnote");
+    expect(window.location.search).toBe("?node=n2");
   });
 });

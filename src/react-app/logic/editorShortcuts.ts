@@ -1,5 +1,9 @@
 export type ShortcutItem = { action: string; keys: string[] };
 
+/**
+ * The help dialog's source of truth. Every branch in `useGraphEditor`'s key
+ * handler has a row here; `editorShortcuts.test.ts` checks the two agree.
+ */
 export const EDITOR_SHORTCUT_GROUPS: Array<{ label: string; items: ShortcutItem[] }> = [
   {
     label: "作成・編集",
@@ -7,13 +11,17 @@ export const EDITOR_SHORTCUT_GROUPS: Array<{ label: string; items: ShortcutItem[
       { action: "ノードを追加", keys: ["N"] },
       { action: "子ノードを追加", keys: ["Tab"] },
       { action: "選択したノードを編集", keys: ["Enter"] },
+      { action: "つながりのラベルを編集（つながり選択時）", keys: ["Enter"] },
+      { action: "選択したノードを複製", keys: ["Mod", "D"] },
     ],
   },
   {
     label: "移動・検索",
     items: [
+      { action: "最初のノードを選ぶ", keys: ["F"] },
       { action: "近くのノードへ移動", keys: ["矢印"] },
       { action: "選択したノードを移動", keys: ["Shift", "矢印"] },
+      { action: "選択したノードを少し移動", keys: ["Shift", "Alt", "矢印"] },
       { action: "ノードを検索", keys: ["Mod", "K"] },
     ],
   },
@@ -22,6 +30,7 @@ export const EDITOR_SHORTCUT_GROUPS: Array<{ label: string; items: ShortcutItem[
     items: [
       { action: "選択したノードをつなぐ", keys: ["L"] },
       { action: "下位ノードを選択", keys: ["C"] },
+      { action: "下位ノードを折りたたむ / 開く", keys: ["H"] },
       { action: "選択を解除", keys: ["Esc"] },
     ],
   },
@@ -32,6 +41,7 @@ export const EDITOR_SHORTCUT_GROUPS: Array<{ label: string; items: ShortcutItem[
       { action: "元に戻す", keys: ["Mod", "Z"] },
       { action: "やり直す", keys: ["Mod", "Shift", "Z"] },
       { action: "選択を削除", keys: ["Delete"] },
+      { action: "下位ごと削除", keys: ["Shift", "Delete"] },
     ],
   },
   {

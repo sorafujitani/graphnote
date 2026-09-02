@@ -9,13 +9,16 @@ export type StubRequest = {
   method: string;
   path: string;
   body: Record<string, unknown> | null;
+  /** Lower-cased header names, as the worker would read them. */
+  headers: Record<string, string>;
 };
 
-/** A non-2xx answer, mirroring the worker's `{ error }` body. */
+/** A non-2xx answer, mirroring the worker's `{ error, ...extra }` body. */
 export class StubError {
   constructor(
     readonly status: number,
     readonly error: string,
+    readonly extra: Record<string, unknown> = {},
   ) {}
 }
 
@@ -41,21 +44,29 @@ export function stubFetch(handle: (request: StubRequest) => unknown): FetchStub 
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const target =
       typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const headers: Record<string, string> = {};
+    new Headers(init?.headers).forEach((value, key) => {
+      headers[key.toLowerCase()] = value;
+    });
     const request: StubRequest = {
       method: init?.method ?? "GET",
       path: new URL(target, window.location.origin).pathname,
       body:
         typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : null,
+      headers,
     };
     calls.push(request);
 
     if (!request.path.startsWith("/api/")) return realFetch(input, init);
     const data = handle(request) ?? { ok: true };
     const failure = data instanceof StubError ? data : null;
-    return new Response(JSON.stringify(failure ? { error: failure.error } : data), {
-      status: failure ? failure.status : 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify(failure ? { error: failure.error, ...failure.extra } : data),
+      {
+        status: failure ? failure.status : 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }) as typeof fetch;
 
   return {

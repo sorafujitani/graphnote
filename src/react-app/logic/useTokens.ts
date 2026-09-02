@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ApiTokenAccess, ApiTokenMeta } from "../../shared/types";
+import { useConfirm } from "./useConfirm";
 import { userMessage } from "../lib/userMessage";
 import { api } from "../server/api";
 export function useTokens() {
@@ -9,6 +10,7 @@ export function useTokens() {
   const [created, setCreated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { pending: confirmDialog, confirm } = useConfirm();
   // Same host the page came from, so a local install points at the local worker.
   const origin = window.location.origin;
 
@@ -39,7 +41,15 @@ export function useTokens() {
   }
 
   async function onDelete(id: string) {
-    if (!confirm("この連携キーを無効にしますか？利用中のアプリから接続できなくなります。")) return;
+    const token = tokens.find((item) => item.id === id);
+    if (!token) return;
+    const ok = await confirm({
+      title: "連携キーを無効化",
+      message: `「${token.name || "名前のないキー"}」を無効にします。利用中のアプリから接続できなくなります。`,
+      confirmLabel: "無効にする",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteToken(id);
       await refresh();
@@ -49,7 +59,7 @@ export function useTokens() {
   }
 
   return {
-    state: { tokens, name, access, created, error, busy, origin },
+    state: { tokens, name, access, created, error, busy, origin, confirmDialog },
     actions: { setName, setAccess, onCreate, onDelete },
   };
 }

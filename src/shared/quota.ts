@@ -8,8 +8,20 @@ export const QUOTA = {
   maxExportsPerHour: 30,
   maxTokenNameChars: 80,
   maxApiTokensPerUser: 10,
-  /** Keep this many export objects per graph in R2. */
+  /** Keep this many manual export objects per graph in R2. */
   maxExportsKeptPerGraph: 5,
+  /** Keep this many nightly backups per graph in R2. */
+  maxAutoBackupsKeptPerGraph: 7,
+  /** Soft-deleted notes, cards and links are purged after this many days. */
+  trashRetentionDays: 30,
+  /** Trashed notes kept per user; older ones are purged early when exceeded. */
+  maxTrashedGraphsPerUser: 50,
+  /** Largest number of cards or links one batch request may create. */
+  maxBatchItems: 200,
+  /** Largest accepted JSON body for a batch: every item at the body limit, plus slack. */
+  maxBatchBytes: 200 * 32_768 + 1024 * 1024,
+  /** Results returned by one search request. */
+  maxSearchHits: 50,
   /** Largest accepted JSON body for regular API calls. */
   maxRequestBytes: 128 * 1024,
   /**
@@ -31,6 +43,8 @@ export const RATE_LIMIT = {
   requestsPerIpPerMinute: 1_800,
   /** Authenticated read requests per user per minute. */
   readPerMinute: 600,
+  /** Full-text searches per user per minute; each one scans every card. */
+  searchPerMinute: 60,
   /** Mutating API calls per user per minute. */
   writePerMinute: 120,
 } as const;

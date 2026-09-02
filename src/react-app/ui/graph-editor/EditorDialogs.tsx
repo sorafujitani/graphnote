@@ -1,72 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { NodeRecord } from "../../../shared/types";
+import type { EdgeRecord, NodeRecord } from "../../../shared/types";
+import { DialogFrame } from "../../components/Dialog";
 import { EDITOR_SHORTCUT_GROUPS, shortcutKey } from "../../logic/editorShortcuts";
+import type { ExportEntry } from "../../server/api";
 
-type DialogFrameProps = {
-  title: string;
-  description?: string;
-  onClose: () => void;
-  children: React.ReactNode;
-  initialFocusRef?: React.RefObject<HTMLElement | null>;
-};
-
-function DialogFrame({ title, description, onClose, children, initialFocusRef }: DialogFrameProps) {
-  const closeRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    (initialFocusRef?.current ?? closeRef.current)?.focus();
-  }, [initialFocusRef]);
-  return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/65 p-4"
-      onMouseDown={onClose}
-    >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="editor-dialog-title"
-        className="panel max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-2xl overflow-hidden"
-        onMouseDown={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key !== "Tab") return;
-          const focusable = [
-            ...event.currentTarget.querySelectorAll<HTMLElement>(
-              'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-            ),
-          ];
-          if (focusable.length === 0) return;
-          const first = focusable[0] as HTMLElement;
-          const last = focusable.at(-1) as HTMLElement;
-          if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
-          }
-        }}
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
-          <div>
-            <h2 id="editor-dialog-title" className="m-0 font-brand text-xl font-bold">
-              {title}
-            </h2>
-            {description ? <p className="mt-1 mb-0 text-sm text-muted">{description}</p> : null}
-          </div>
-          <button
-            ref={closeRef}
-            className="btn btn-ghost grid size-9 place-items-center p-0 text-xl"
-            type="button"
-            aria-label="閉じる"
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </header>
-        {children}
-      </section>
-    </div>
-  );
-}
+const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
 
 export function EditorHelpDialog({ onClose }: { onClose: () => void }) {
   return (
@@ -195,6 +136,123 @@ export function NodeSearchDialog({
             ))
           )}
         </div>
+      </div>
+    </DialogFrame>
+  );
+}
+
+export function EdgeLabelDialog({
+  edge,
+  nodes,
+  onSave,
+  onClose,
+}: {
+  edge: EdgeRecord;
+  nodes: NodeRecord[];
+  onSave: (label: string) => void;
+  onClose: () => void;
+}) {
+  const [label, setLabel] = useState(edge.label);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const name = (id: string) => nodes.find((node) => node.id === id)?.title.trim() || "タイトルなし";
+  return (
+    <DialogFrame
+      title="つながりのラベル"
+      description={`${name(edge.source_id)} → ${name(edge.target_id)}`}
+      onClose={onClose}
+      initialFocusRef={inputRef}
+    >
+      <form
+        className="grid gap-4 p-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave(label.trim());
+        }}
+      >
+        <input
+          ref={inputRef}
+          className="input-surface w-full"
+          aria-label="ラベル"
+          placeholder="例：理由、次に、参照"
+          value={label}
+          onChange={(event) => setLabel(event.target.value)}
+        />
+        <div className="flex justify-end gap-2">
+          {edge.label ? (
+            <button className="btn btn-secondary mr-auto" type="button" onClick={() => onSave("")}>
+              ラベルを消す
+            </button>
+          ) : null}
+          <button className="btn btn-secondary" type="button" onClick={onClose}>
+            キャンセル
+          </button>
+          <button className="btn btn-accent" type="submit">
+            保存
+          </button>
+        </div>
+      </form>
+    </DialogFrame>
+  );
+}
+
+function formatBytes(size: number) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function RestoreDialog({
+  exports,
+  busy,
+  onRestore,
+  onClose,
+}: {
+  exports: ExportEntry[] | null;
+  busy: boolean;
+  onRestore: (name: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <DialogFrame
+      title="バックアップから復元"
+      description="ダウンロード時と毎晩の自動保存分がここに残ります。選ぶと今のノートの内容が置き換わります。"
+      onClose={onClose}
+    >
+      <div className="max-h-[min(28rem,calc(100vh-14rem))] overflow-y-auto p-4">
+        {exports === null ? (
+          <p className="m-0 px-3 py-8 text-center text-sm text-muted">読み込んでいます…</p>
+        ) : exports.length === 0 ? (
+          <p className="m-0 px-3 py-8 text-center text-sm text-muted">
+            バックアップはまだありません。メニューの「ダウンロード」で保存できます。
+          </p>
+        ) : (
+          <ul className="m-0 grid list-none gap-2 p-0">
+            {exports.map((entry) => (
+              <li
+                key={entry.name}
+                className="flex items-center justify-between gap-3 rounded-xl border border-line px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold">
+                    {dateTimeFormat.format(new Date(entry.uploaded))}
+                  </div>
+                  <div className="text-xs text-muted">
+                    {entry.kind === "auto" ? "自動保存" : "ダウンロード時"} ·{" "}
+                    {formatBytes(entry.size)}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-secondary shrink-0"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onRestore(entry.name)}
+                >
+                  この時点に戻す
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </DialogFrame>
   );

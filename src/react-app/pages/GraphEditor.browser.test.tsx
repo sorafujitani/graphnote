@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser/context";
 import { NOTE_MIN_HEIGHT } from "../../shared/noteSize";
+import { StubError } from "../test/api-stub";
 import {
   cardBox,
   cardCenter,
@@ -18,6 +19,153 @@ import {
 } from "../test/canvas";
 
 const twoNotes = () => [note("n1", 0, 0, "Alpha"), note("n2", 520, 40, "Beta")];
+
+describe("data safety", () => {
+  it("offers undo after deleting a note and restores it through the trash", async () => {
+    const api = await mountEditor(twoNotes(), [link("e1", "n1", "n2")]);
+    await userEvent.click(cardElement("n2"));
+    await userEvent.click(screen.getByRole("button", { name: "選択を削除" }));
+
+    await waitFor(() => expect(api.matching("POST", "/nodes/delete")).toHaveLength(1));
+    expect(document.querySelectorAll(".react-flow__node")).toHaveLength(1);
+    const toast = await screen.findByText(/1件のノードを削除しました/);
+    await userEvent.click(within(toast.parentElement!).getByRole("button", { name: "元に戻す" }));
+
+    await waitFor(() => {
+      expect(api.matching("POST", "/nodes/restore").at(-1)?.body).toEqual({
+        nodeIds: ["n2"],
+        edgeIds: ["e1"],
+      });
+      expect(document.querySelectorAll(".react-flow__node")).toHaveLength(2);
+      expect(document.querySelector('.react-flow__edge[data-id="e1"]')).toBeInTheDocument();
+    });
+  });
+
+  it("keeps refused text on screen and lets the user retry or discard", async () => {
+    let refuse = true;
+    const api = await mountEditor(twoNotes(), [], ({ method, path }) =>
+      refuse && method === "PATCH" && path.endsWith("/nodes/n1")
+        ? new StubError(500, "internal error")
+        : undefined,
+    );
+    const card = cardBox("n1");
+    const title = fieldBox("n1", "title");
+    await userEvent.dblClick(cardElement("n1"), {
+      position: { x: title.x - card.x + 20, y: title.y - card.y + 4 },
+    });
+    await userEvent.fill(fieldEditor("n1", "title"), "Unsaved");
+    await userEvent.click(document.querySelector(".react-flow__pane") as HTMLElement);
+
+    const banner = await screen.findByText(/入力した内容は画面に残っています/);
+    expect(cardElement("n1")).toHaveTextContent("Unsaved");
+    expect(document.querySelector("[data-save-state]")).toHaveAttribute("data-save-state", "error");
+
+    refuse = false;
+    await userEvent.click(screen.getByRole("button", { name: "再試行" }));
+    await waitFor(() => expect(banner).not.toBeInTheDocument());
+    expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(2);
+    expect(cardElement("n1")).toHaveTextContent("Unsaved");
+  });
+
+  it("shows the server's version after a conflict when the user discards", async () => {
+    const current = { ...note("n1", 0, 0, "From CLI"), updated_at: "2026-02-01T00:00:00.000Z" };
+    await mountEditor(twoNotes(), [], ({ method, path }) =>
+      method === "PATCH" && path.endsWith("/nodes/n1")
+        ? new StubError(412, "conflict", { node: current })
+        : undefined,
+    );
+    const card = cardBox("n1");
+    const title = fieldBox("n1", "title");
+    await userEvent.dblClick(cardElement("n1"), {
+      position: { x: title.x - card.x + 20, y: title.y - card.y + 4 },
+    });
+    await userEvent.fill(fieldEditor("n1", "title"), "Mine");
+    await userEvent.click(document.querySelector(".react-flow__pane") as HTMLElement);
+
+    await screen.findByText(/別の場所で更新されています/);
+    expect(cardElement("n1")).toHaveTextContent("Mine");
+    await userEvent.click(screen.getByRole("button", { name: "最新の内容に戻す" }));
+    await waitFor(() => expect(cardElement("n1")).toHaveTextContent("From CLI"));
+  });
+
+  it("sends the card's version with every text save", async () => {
+    const api = await mountEditor(twoNotes());
+    const card = cardBox("n1");
+    const title = fieldBox("n1", "title");
+    await userEvent.dblClick(cardElement("n1"), {
+      position: { x: title.x - card.x + 20, y: title.y - card.y + 4 },
+    });
+    await userEvent.fill(fieldEditor("n1", "title"), "Versioned");
+    await userEvent.click(document.querySelector(".react-flow__pane") as HTMLElement);
+    await waitFor(() => expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(1));
+    expect(api.matching("PATCH", "/nodes/n1")[0]?.headers["if-match"]).toBe(
+      "2026-01-01T00:00:00.000Z",
+    );
+  });
+});
+
+describe("Markdown and links", () => {
+  it("toggles a task checkbox and saves the flipped line", async () => {
+    const api = await mountEditor([note("n1", 0, 0, "Todo", "- [ ] buy milk\n- [x] done")]);
+    await userEvent.click(screen.getAllByRole("checkbox", { name: "完了にする" })[0]!);
+    await waitFor(() => {
+      expect(api.matching("PATCH", "/nodes/n1").at(-1)?.body).toEqual({
+        body: "- [x] buy milk\n- [x] done",
+      });
+    });
+  });
+
+  it("edits a connection label from the keyboard", async () => {
+    const api = await mountEditor(twoNotes(), [link("e1", "n1", "n2")]);
+    const edge = document.querySelector<SVGGElement>('.react-flow__edge[data-id="e1"]');
+    const hitArea = edge?.querySelector<SVGPathElement>(".react-flow__edge-interaction");
+    if (!hitArea) throw new Error("connection e1 is not on the canvas");
+    await userEvent.click(hitArea);
+    await waitFor(() => expect(edge).toHaveClass("selected"));
+
+    await userEvent.keyboard("{Enter}");
+    const input = await screen.findByRole("textbox", { name: "ラベル" });
+    await userEvent.fill(input, "because");
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => {
+      expect(api.matching("PATCH", "/edges/e1").at(-1)?.body).toEqual({ label: "because" });
+    });
+    await waitFor(() => expect(edge).toHaveTextContent("because"));
+  });
+
+  it("edits title and body from the detail pane", async () => {
+    const api = await mountEditor(twoNotes());
+    await userEvent.click(cardElement("n1"));
+    const inspector = screen.getByRole("complementary", { name: "ノードの詳細" });
+    await userEvent.click(within(inspector).getByRole("button", { name: "編集" }));
+    await userEvent.fill(
+      within(inspector).getByRole("textbox", { name: "ノードの本文" }),
+      "# 見出し",
+    );
+    await userEvent.click(within(inspector).getByRole("button", { name: "保存" }));
+    await waitFor(() => {
+      expect(api.matching("PATCH", "/nodes/n1").at(-1)?.body).toEqual({ body: "# 見出し" });
+    });
+    expect(within(inspector).getByRole("heading", { name: "見出し" })).toBeInTheDocument();
+  });
+
+  it("collapses a branch behind its parent and expands it from the badge", async () => {
+    await mountEditor(
+      [note("n1", 0, 0, "Root"), note("n2", 400, 0, "Child"), note("n3", 800, 0, "Grandchild")],
+      [link("e1", "n1", "n2"), link("e2", "n2", "n3")],
+    );
+    await userEvent.click(cardElement("n1"));
+    await userEvent.keyboard("h");
+    await waitFor(() => {
+      expect(document.querySelectorAll(".react-flow__node")).toHaveLength(1);
+    });
+    const badge = screen.getByRole("button", { name: "2件の下位ノードを開く" });
+    await userEvent.click(badge);
+    await waitFor(() => {
+      expect(document.querySelectorAll(".react-flow__node")).toHaveLength(3);
+    });
+  });
+});
 
 describe("P1 editor workflows", () => {
   it("starts mobile with a clear canvas and keeps primary actions in one row", async () => {

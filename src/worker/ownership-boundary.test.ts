@@ -97,7 +97,7 @@ describe("ownership boundary: another user's graph is invisible", () => {
   });
 
   it("deleteGraph returns false", async () => {
-    expect(await deleteGraph(fakeDb(), STRANGER, GRAPH)).toBe(false);
+    expect((await deleteGraph(fakeDb(), STRANGER, GRAPH)).ok).toBe(false);
   });
 
   it("createNode returns null", async () => {

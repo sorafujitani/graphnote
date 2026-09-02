@@ -32,13 +32,91 @@ function clampWidth(width: number) {
 type Props = {
   node: AppNode | undefined;
   onReturnToCanvas: () => void;
+  onChange: (nodeId: string, patch: { title?: string; body?: string }) => void;
+  onToggleTask: (nodeId: string, index: number) => void;
 };
 
-export function NodeInspector({ node, onReturnToCanvas }: Props) {
+/** Full-width editor for the selected card's title and body. */
+function InspectorForm({
+  node,
+  onChange,
+  onDone,
+}: {
+  node: AppNode;
+  onChange: Props["onChange"];
+  onDone: () => void;
+}) {
+  const [title, setTitle] = useState(node.data.title);
+  const [body, setBody] = useState(node.data.body);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    bodyRef.current?.focus();
+  }, []);
+
+  function save() {
+    const patch: { title?: string; body?: string } = {};
+    if (title !== node.data.title) patch.title = title;
+    if (body !== node.data.body) patch.body = body;
+    if (Object.keys(patch).length > 0) onChange(node.id, patch);
+    onDone();
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onDone();
+    } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      save();
+    }
+  }
+
+  return (
+    <form
+      className="flex min-h-0 flex-1 flex-col gap-3 px-5 py-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        save();
+      }}
+    >
+      <input
+        className="input-surface w-full font-semibold"
+        aria-label="ノードのタイトル"
+        value={title}
+        onChange={(event) => setTitle(event.target.value.replace(/\n/g, " "))}
+        onKeyDown={onKeyDown}
+      />
+      <textarea
+        ref={bodyRef}
+        className="input-surface min-h-0 w-full flex-1 resize-none font-mono text-sm leading-relaxed"
+        aria-label="ノードの本文"
+        placeholder="Markdownで書けます"
+        value={body}
+        onChange={(event) => setBody(event.target.value)}
+        onKeyDown={onKeyDown}
+      />
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted">⌘Enter で保存 / Esc で取り消し</span>
+        <div className="flex gap-2">
+          <button className="btn btn-secondary" type="button" onClick={onDone}>
+            取り消し
+          </button>
+          <button className="btn btn-accent" type="submit">
+            保存
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+export function NodeInspector({ node, onReturnToCanvas, onChange, onToggleTask }: Props) {
   const mobile = useSyncExternalStore(subscribeToMobileViewport, isMobileViewport, () => false);
   const [open, setOpen] = useState(() => !isMobileViewport());
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [resizing, setResizing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const resizeStartRef = useRef({ x: 0, width: DEFAULT_WIDTH });
 
   useEffect(() => {
@@ -53,16 +131,25 @@ export function NodeInspector({ node, onReturnToCanvas }: Props) {
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
 
-    const resize = (event: globalThis.MouseEvent) => {
-      const delta = resizeStartRef.current.x - event.clientX;
+    const move = (clientX: number) => {
+      const delta = resizeStartRef.current.x - clientX;
       setWidth(clampWidth(resizeStartRef.current.width + delta));
     };
+    const onMouseMove = (event: globalThis.MouseEvent) => move(event.clientX);
+    const onTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (touch) move(touch.clientX);
+    };
     const finish = () => setResizing(false);
-    document.addEventListener("mousemove", resize);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("touchmove", onTouchMove);
     document.addEventListener("mouseup", finish, { once: true });
+    document.addEventListener("touchend", finish, { once: true });
     return () => {
-      document.removeEventListener("mousemove", resize);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("touchmove", onTouchMove);
       document.removeEventListener("mouseup", finish);
+      document.removeEventListener("touchend", finish);
       document.body.style.cursor = previousCursor;
       document.body.style.userSelect = previousSelection;
     };
@@ -81,6 +168,8 @@ export function NodeInspector({ node, onReturnToCanvas }: Props) {
       clampWidth(current + (event.key === "ArrowLeft" ? KEYBOARD_STEP : -KEYBOARD_STEP)),
     );
   }
+
+  const editing = node && editingId === node.id;
 
   if (!open) {
     if (mobile && !node) return null;
@@ -119,29 +208,65 @@ export function NodeInspector({ node, onReturnToCanvas }: Props) {
       >
         <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
           <p className="m-0 text-xs font-semibold tracking-[0.08em] text-muted">ノードの詳細</p>
-          <button
-            className="btn btn-ghost grid size-8 place-items-center px-0 py-0 text-lg"
-            type="button"
-            aria-label="詳細を閉じる"
-            onClick={() => {
-              setOpen(false);
+          <div className="flex items-center gap-1">
+            {node && !editing ? (
+              <button
+                className="btn btn-ghost px-2 py-1 text-sm"
+                type="button"
+                onClick={() => setEditingId(node.id)}
+              >
+                編集
+              </button>
+            ) : null}
+            <button
+              className="btn btn-ghost grid size-8 place-items-center px-0 py-0 text-lg"
+              type="button"
+              aria-label="詳細を閉じる"
+              onClick={() => {
+                setOpen(false);
+                setEditingId(null);
+                onReturnToCanvas();
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </header>
+        {node && editing ? (
+          <InspectorForm
+            key={node.id}
+            node={node}
+            onChange={onChange}
+            onDone={() => {
+              setEditingId(null);
               onReturnToCanvas();
             }}
-          >
-            ×
-          </button>
-        </header>
-        {node ? (
+          />
+        ) : node ? (
           <div data-node-inspector-content className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-            <h2 className="mt-0 mb-5 text-xl leading-snug font-bold break-words text-ink">
+            <h2
+              className="mt-0 mb-5 cursor-text text-xl leading-snug font-bold break-words text-ink"
+              onDoubleClick={() => setEditingId(node.id)}
+            >
               {node.data.title.trim() || "タイトルなし"}
             </h2>
             {node.data.body.trim() ? (
-              <MarkdownContent className="note-md node-inspector-md">
-                {node.data.body}
-              </MarkdownContent>
+              <div onDoubleClick={() => setEditingId(node.id)}>
+                <MarkdownContent
+                  className="note-md node-inspector-md"
+                  onToggleTask={(index) => onToggleTask(node.id, index)}
+                >
+                  {node.data.body}
+                </MarkdownContent>
+              </div>
             ) : (
-              <p className="m-0 text-sm text-muted">本文はまだありません</p>
+              <button
+                type="button"
+                className="btn btn-ghost m-0 justify-start px-0 text-sm text-muted"
+                onClick={() => setEditingId(node.id)}
+              >
+                本文はまだありません。ここに書く
+              </button>
             )}
           </div>
         ) : (

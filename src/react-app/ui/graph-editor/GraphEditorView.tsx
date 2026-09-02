@@ -6,19 +6,29 @@ import {
   ReactFlow,
   useUpdateNodeInternals,
 } from "@xyflow/react";
-import { useEffect, type MutableRefObject } from "react";
+import { useEffect, type RefObject } from "react";
+import { QUOTA } from "../../../shared/quota";
+import type { PublicUser } from "../../../shared/types";
+import { ConfirmDialog } from "../../components/Dialog";
 import { AppMenu } from "../../components/AppMenu";
 import { Note } from "../../components/Note";
 import { NoteActionsProvider } from "../../components/NoteActions";
 import { EDGE_MARKER } from "../../logic/graphEditorFlow";
 import type { GraphEditorController } from "../../logic/useGraphEditor";
-import { EditorHelpDialog, NodeSearchDialog } from "./EditorDialogs";
+import {
+  EdgeLabelDialog,
+  EditorHelpDialog,
+  NodeSearchDialog,
+  RestoreDialog,
+} from "./EditorDialogs";
 import { NodeInspector } from "./NodeInspector";
 
 type Props = {
   controller: GraphEditorController;
+  user?: PublicUser | null;
   onBack: () => void;
   onLogout: () => void;
+  onOpenTokens: () => void;
 };
 
 const nodeTypes = { note: Note };
@@ -32,11 +42,14 @@ const ariaLabelConfig = {
   "handle.ariaLabel": "ノードをつなぐ",
 } as const;
 
-function NodeInternalsBridge({
-  apiRef,
-}: {
-  apiRef: MutableRefObject<((ids: string[]) => void) | null>;
-}) {
+const SAVE_LABEL = {
+  idle: "",
+  saving: "保存中…",
+  saved: "保存済み",
+  error: "保存できていない変更があります",
+} as const;
+
+function NodeInternalsBridge({ apiRef }: { apiRef: RefObject<((ids: string[]) => void) | null> }) {
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
     apiRef.current = (ids) => {
@@ -49,9 +62,30 @@ function NodeInternalsBridge({
   return null;
 }
 
-export function GraphEditorView({ controller, onBack, onLogout }: Props) {
+export function GraphEditorView({ controller, user, onBack, onLogout, onOpenTokens }: Props) {
   const { state, refs, actions, noteActions } = controller;
   const selectedNode = state.nodes.find((node) => node.selected);
+  const dialog = state.dialog;
+  const labelEdge =
+    dialog?.name === "edgeLabel"
+      ? state.edgeRecords.find((edge) => edge.id === dialog.edgeId)
+      : undefined;
+
+  if (state.loadError === "notFound") {
+    return (
+      <main className="landing-bg grid h-full min-h-screen place-items-center p-5">
+        <section className="panel w-full max-w-md px-7 py-8 text-center" role="alert">
+          <h1 className="mt-0 mb-2 font-brand text-2xl font-bold">ノートが見つかりません</h1>
+          <p className="mt-0 mb-6 text-sm leading-relaxed text-muted">
+            削除されたか、リンクが古い可能性があります。削除したノートは一覧の「削除したノート」から戻せます。
+          </p>
+          <button className="btn btn-accent" type="button" onClick={onBack}>
+            ノート一覧へ
+          </button>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <div className="grid h-screen min-h-screen grid-rows-[auto_1fr] overflow-hidden">
@@ -158,9 +192,13 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
           </div>
         </div>
 
-        <AppMenu>
+        <AppMenu user={user}>
           {(close) => (
             <>
+              <p className="m-0 px-3 pt-1 pb-2 text-xs text-muted">
+                ノード {state.nodeCount} / {QUOTA.maxNodesPerGraph}
+                {state.hiddenCount > 0 ? `（${state.hiddenCount}件を折りたたみ中）` : ""}
+              </p>
               <button
                 className="btn btn-ghost flex w-full justify-start"
                 type="button"
@@ -254,6 +292,41 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
               <button
                 className="btn btn-ghost flex w-full justify-start"
                 type="button"
+                disabled={state.busy || state.selectedNodeCount === 0}
+                onClick={() => {
+                  close();
+                  void actions.duplicateSelection();
+                }}
+              >
+                選択を複製
+              </button>
+              <button
+                className="btn btn-ghost flex w-full justify-start"
+                type="button"
+                disabled={state.busy || !state.activeParentId}
+                onClick={() => {
+                  close();
+                  actions.toggleCollapse();
+                }}
+              >
+                {state.hiddenCount > 0 ? "下位ノードを折りたたむ / 開く" : "下位ノードを折りたたむ"}
+              </button>
+              {state.selectedEdgeId ? (
+                <button
+                  className="btn btn-ghost flex w-full justify-start"
+                  type="button"
+                  onClick={() => {
+                    close();
+                    actions.openEdgeLabel(state.selectedEdgeId as string);
+                  }}
+                >
+                  つながりのラベルを編集
+                </button>
+              ) : null}
+              <div className="mx-2 border-t border-line" />
+              <button
+                className="btn btn-ghost flex w-full justify-start"
+                type="button"
                 disabled={state.busy}
                 onClick={() => {
                   close();
@@ -262,7 +335,37 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
               >
                 ダウンロード
               </button>
+              <button
+                className="btn btn-ghost flex w-full justify-start"
+                type="button"
+                disabled={state.busy}
+                onClick={() => {
+                  close();
+                  void actions.openRestore();
+                }}
+              >
+                バックアップから復元
+              </button>
               <div className="mx-2 border-t border-line" />
+              <button
+                className="btn btn-ghost flex w-full justify-start"
+                type="button"
+                onClick={() => {
+                  close();
+                  onOpenTokens();
+                }}
+              >
+                CLI連携
+              </button>
+              <a
+                className="btn btn-ghost flex w-full justify-start"
+                href="https://github.com/sorafujitani/graphnote/issues"
+                target="_blank"
+                rel="noreferrer"
+                onClick={close}
+              >
+                フィードバック
+              </a>
               <button
                 className="btn btn-ghost flex w-full justify-start text-danger"
                 type="button"
@@ -321,6 +424,7 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
                 onNodeMouseEnter={(_, node) => actions.onNodeMouseEnter(node.id)}
                 onNodeMouseLeave={(_, node) => actions.onNodeMouseLeave(node.id)}
                 onNodeClick={(_, node) => actions.focusParent(node.id)}
+                onEdgeDoubleClick={(_, edge) => actions.openEdgeLabel(edge.id)}
                 onSelectionChange={actions.onSelectionChange}
                 onInit={actions.onFlowInit}
                 defaultEdgeOptions={{ type: "default", markerEnd: EDGE_MARKER }}
@@ -363,8 +467,19 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
               </div>
             </div>
           ) : null}
-          {/* Stacked, click-through container: only the dismiss button takes
-              pointer events, so a lingering toast never blocks the canvas. */}
+          {/* Floating so it never pushes toolbar buttons around. */}
+          <div
+            role="status"
+            aria-live="polite"
+            data-save-state={state.saveState}
+            className={`pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full px-3 py-1 text-xs shadow-lg transition-opacity ${
+              state.saveState === "idle" ? "opacity-0" : "panel opacity-100"
+            } ${state.saveState === "error" ? "text-danger" : "text-muted"}`}
+          >
+            {SAVE_LABEL[state.saveState]}
+          </div>
+          {/* Stacked, click-through container: only the buttons take pointer
+              events, so a lingering toast never blocks the canvas. */}
           <div className="pointer-events-none absolute top-4 left-1/2 z-10 flex w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 flex-col gap-2">
             {state.error ? (
               <div
@@ -382,24 +497,92 @@ export function GraphEditorView({ controller, onBack, onLogout }: Props) {
                 </button>
               </div>
             ) : null}
+            {state.failedSaves.map((failed) => (
+              <div
+                key={failed.nodeId}
+                role="alert"
+                className="panel flex flex-wrap items-center gap-2 px-4 py-3 text-sm shadow-lg"
+              >
+                <p className="m-0 min-w-0 flex-1 text-danger">
+                  {failed.message} 入力した内容は画面に残っています。
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-secondary pointer-events-auto px-3 py-1"
+                  onClick={() => actions.retryFailedSave(failed.nodeId)}
+                >
+                  {failed.current ? "この内容で上書き" : "再試行"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost pointer-events-auto px-3 py-1"
+                  onClick={() => actions.discardFailedSave(failed.nodeId)}
+                >
+                  {failed.current ? "最新の内容に戻す" : "破棄"}
+                </button>
+              </div>
+            ))}
             {state.notice ? (
-              <p role="status" className="panel m-0 px-4 py-3 text-sm shadow-lg">
-                {state.notice}
-              </p>
+              <div
+                role="status"
+                className="panel flex items-center gap-3 px-4 py-3 text-sm shadow-lg"
+              >
+                <p className="m-0 min-w-0 flex-1">{state.notice.message}</p>
+                {state.notice.action ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary pointer-events-auto px-3 py-1"
+                    onClick={() => {
+                      const run = state.notice?.action?.run;
+                      actions.dismissNotice();
+                      run?.();
+                    }}
+                  >
+                    {state.notice.action.label}
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>
         <NodeInspector
           node={selectedNode}
           onReturnToCanvas={() => refs.canvasRef.current?.focus()}
+          onChange={actions.persistNode}
+          onToggleTask={noteActions.onToggleTask}
         />
       </div>
-      {state.dialog === "help" ? <EditorHelpDialog onClose={actions.closeDialog} /> : null}
-      {state.dialog === "search" ? (
+      {dialog?.name === "help" ? <EditorHelpDialog onClose={actions.closeDialog} /> : null}
+      {dialog?.name === "search" ? (
         <NodeSearchDialog
           nodes={state.nodeRecords}
           onSelect={actions.focusNodeInView}
           onClose={actions.closeDialog}
+        />
+      ) : null}
+      {dialog?.name === "edgeLabel" && labelEdge ? (
+        <EdgeLabelDialog
+          edge={labelEdge}
+          nodes={state.nodeRecords}
+          onSave={(label) => void actions.saveEdgeLabel(labelEdge.id, label)}
+          onClose={actions.closeDialog}
+        />
+      ) : null}
+      {dialog?.name === "restore" ? (
+        <RestoreDialog
+          exports={state.exports}
+          busy={state.busy}
+          onRestore={(name) => void actions.restoreFromBackup(name)}
+          onClose={actions.closeDialog}
+        />
+      ) : null}
+      {dialog?.name === "confirm" ? (
+        <ConfirmDialog
+          title={dialog.title}
+          message={dialog.message}
+          confirmLabel={dialog.confirmLabel}
+          danger={dialog.danger}
+          onResolve={dialog.resolve}
         />
       ) : null}
     </div>

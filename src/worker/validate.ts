@@ -1,6 +1,6 @@
 import { QUOTA } from "../shared/quota";
 import { isValidNoteHeight, isValidNoteWidth } from "../shared/noteSize";
-import type { GraphExport } from "../shared/types";
+import type { BatchInput, GraphExport } from "../shared/types";
 
 // Coordinates far beyond any real canvas break layout math downstream.
 const COORD_LIMIT = 1_000_000;
@@ -182,6 +182,82 @@ export function parseCreateEdgeBody(
     target_id: raw.target_id,
     label: raw.label as string | undefined,
   });
+}
+
+export function parseUpdateEdgeBody(raw: unknown): ParseResult<{ label: string }> {
+  if (!isRecord(raw)) return invalid("body must be a JSON object");
+  if (typeof raw.label !== "string") return invalid("label must be a string");
+  if (raw.label.length > QUOTA.maxTitleChars) {
+    return invalid(`label too long (max ${QUOTA.maxTitleChars})`);
+  }
+  return valid({ label: raw.label });
+}
+
+export function parseRestoreNodesBody(
+  raw: unknown,
+): ParseResult<{ nodeIds: string[]; edgeIds: string[] }> {
+  if (!isRecord(raw)) return invalid("body must be a JSON object");
+  const nodeIds = raw.nodeIds === undefined ? [] : raw.nodeIds;
+  const edgeIds = raw.edgeIds === undefined ? [] : raw.edgeIds;
+  if (!Array.isArray(nodeIds) || !nodeIds.every(isId)) {
+    return invalid("nodeIds must be non-empty strings");
+  }
+  if (!Array.isArray(edgeIds) || !edgeIds.every(isId)) {
+    return invalid("edgeIds must be non-empty strings");
+  }
+  if (nodeIds.length === 0 && edgeIds.length === 0) return invalid("nothing to restore");
+  if (nodeIds.length > QUOTA.maxNodesPerGraph || edgeIds.length > QUOTA.maxEdgesPerGraph) {
+    return invalid("too many ids");
+  }
+  return valid({ nodeIds: nodeIds as string[], edgeIds: edgeIds as string[] });
+}
+
+export function parseBatchBody(raw: unknown): ParseResult<BatchInput> {
+  if (!isRecord(raw)) return invalid("body must be a JSON object");
+  const rawNodes = raw.nodes === undefined ? [] : raw.nodes;
+  const rawEdges = raw.edges === undefined ? [] : raw.edges;
+  if (!Array.isArray(rawNodes) || !Array.isArray(rawEdges)) {
+    return invalid("nodes and edges must be arrays");
+  }
+  if (rawNodes.length === 0 && rawEdges.length === 0) return invalid("nothing to create");
+  if (rawNodes.length + rawEdges.length > QUOTA.maxBatchItems) {
+    return invalid(`batch too large (max ${QUOTA.maxBatchItems} items)`);
+  }
+  const nodes: BatchInput["nodes"] = [];
+  for (const item of rawNodes) {
+    const fields = parseNodeFields(item, false);
+    if (!fields.ok) return fields;
+    if (!isRecord(item)) return invalid("each node must be an object");
+    if (item.tempId !== undefined && !isId(item.tempId)) {
+      return invalid("tempId must be a non-empty string");
+    }
+    nodes.push({ ...fields.value, ...(item.tempId !== undefined ? { tempId: item.tempId } : {}) });
+  }
+  const edges: BatchInput["edges"] = [];
+  for (const item of rawEdges) {
+    if (!isRecord(item) || !isId(item.source) || !isId(item.target)) {
+      return invalid("each edge needs string source and target");
+    }
+    if (item.label !== undefined) {
+      if (typeof item.label !== "string") return invalid("label must be a string");
+      if (item.label.length > QUOTA.maxTitleChars) {
+        return invalid(`label too long (max ${QUOTA.maxTitleChars})`);
+      }
+    }
+    edges.push({
+      source: item.source,
+      target: item.target,
+      ...(typeof item.label === "string" ? { label: item.label } : {}),
+    });
+  }
+  return valid({ nodes, edges });
+}
+
+export function parseSearchQuery(raw: string | undefined): ParseResult<string> {
+  const query = (raw ?? "").trim();
+  if (query.length < 2) return invalid("q must be at least 2 characters");
+  if (query.length > QUOTA.maxTitleChars) return invalid(`q too long (max ${QUOTA.maxTitleChars})`);
+  return valid(query);
 }
 
 export function parseImportBody(raw: unknown): ParseResult<GraphExport> {
