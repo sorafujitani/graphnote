@@ -300,7 +300,7 @@ export function GraphListView({
                     else rowRefs.current.delete(graph.id);
                   }}
                   type="button"
-                  className="btn btn-ghost min-w-0 flex-1 p-0 text-left"
+                  className="btn btn-ghost min-w-0 flex-1 p-0 text-left focus-visible:ring-0"
                   onClick={() => onOpen(graph.id)}
                   onFocus={() => actions.setActiveIndex(index)}
                 >

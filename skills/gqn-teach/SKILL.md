@@ -107,11 +107,11 @@ Prefer **balanced bush**: a few L1 columns, each with a short sibling stack — 
 
 ## Node content rules
 
-| Field   | Rule                                                                                                                                                                     |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `title` | Plain noun/verb phrase, ≤ ~40 chars. Primary label on the canvas.                                                                                                        |
-| `body`  | Short Markdown cues that help the user _understand, verify, or try_. Usually 2–8 visual lines; one link and/or one tiny code block. Empty only when the title is enough. |
-| layout  | Root left; each subtree in its own vertical band; siblings near their parent (`Δx≈300`, `Δy≈160` per sibling — the same constants as `gqn-node-refactor`; `gqn fmt` is the source of truth).                                                           |
+| Field   | Rule                                                                                                                                                                                         |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `title` | Plain noun/verb phrase, ≤ ~40 chars. Primary label on the canvas.                                                                                                                            |
+| `body`  | Short Markdown cues that help the user _understand, verify, or try_. Usually 2–8 visual lines; one link and/or one tiny code block. Empty only when the title is enough.                     |
+| layout  | Root left; each subtree in its own vertical band; siblings near their parent (`Δx≈300`, `Δy≈160` per sibling — the same constants as `gqn-node-refactor`; `gqn fmt` is the source of truth). |
 
 ### When to fill `body`
 
@@ -187,7 +187,7 @@ gqn --prod graphs create '<Topic>'
 gqn --prod nodes create <graphId> --title '<Topic>' --x 80 --y 400 --body $'- [source](<url>)\n- [docs](<official>)'
 ```
 
-8. **Create children** — prefer `--parent` **and** explicit coordinates so each facet’s children sit in that facet’s band:
+1. **Create children** — prefer `--parent` **and** explicit coordinates so each facet’s children sit in that facet’s band:
 
 ```bash
 # L1 facet i at y = 80 + i*160 ; its L2 at x+300, y + j*160 (hand placement only approximates `gqn fmt`, run it in step 10)
@@ -196,17 +196,17 @@ gqn --prod nodes create <graphId> --title '<Unit>' --parent <facetId> --x 680 --
   --body $'- plain cue\n- [official name](https://example.com/docs/...)'
 ```
 
-9. **Cross-links** only when hierarchy is not enough (shared dependency / contrast). Do not use cross-links to fake a missing L1 facet.
+1. **Cross-links** only when hierarchy is not enough (shared dependency / contrast). Do not use cross-links to fake a missing L1 facet.
 
 ```bash
 gqn --prod edges create <graphId> <sourceId> <targetId> --label 'depends'
 ```
 
-10. **Verify structure then layout** — `gqn --prod graphs get <graphId>`:
+1.  **Verify structure then layout** — `gqn --prod graphs get <graphId>`:
     - depth ≤ 3 edges; no parent with >7 children; no filler mid-nodes
     - bodies/links/examples look right; no pasted prose or overlong card (>~12 visual lines)
     - then `gqn --prod fmt <graphId>` (or **`gqn-node-refactor`** if topology is wrong, not just positions)
-11. Report graph id + open URL + shape one-liner (depth × facets × approx nodes). No essay retelling.
+2.  Report graph id + open URL + shape one-liner (depth × facets × approx nodes). No essay retelling.
 
 ## Decomposition heuristics (by source type)
 
