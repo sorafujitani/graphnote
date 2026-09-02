@@ -361,17 +361,13 @@ export function useGraphEditor({ graphId, onBack }: UseGraphEditorOptions) {
         }
 
         const offset = nodeRecordsRef.current.length * 24;
-        const siblingNodes = parent
-          ? nodeRecordsRef.current.filter((node) =>
-              edgeRecordsRef.current.some(
-                (edge) => edge.source_id === parent.id && edge.target_id === node.id,
-              ),
-            )
+        const occupiedNodes = parent
+          ? nodeRecordsRef.current.filter((node) => node.id !== parent.id)
           : [];
         const pos =
           opts?.at ??
           (parent
-            ? placeChildPosition(parent, siblingNodes)
+            ? placeChildPosition(parent, occupiedNodes)
             : { x: 120 + offset, y: 120 + offset });
         const { node } = await api.createNode(graphId, {
           title: "新しいノード",

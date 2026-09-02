@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import { MarkdownContent } from "../../components/MarkdownContent";
 import type { AppNode } from "../../logic/graphEditorTypes";
 
@@ -6,6 +13,17 @@ const DEFAULT_WIDTH = 360;
 const MIN_WIDTH = 280;
 const MAX_WIDTH = 640;
 const KEYBOARD_STEP = 24;
+const MOBILE_QUERY = "(max-width: 768px)";
+
+function subscribeToMobileViewport(onStoreChange: () => void) {
+  const query = window.matchMedia(MOBILE_QUERY);
+  query.addEventListener("change", onStoreChange);
+  return () => query.removeEventListener("change", onStoreChange);
+}
+
+function isMobileViewport() {
+  return window.matchMedia(MOBILE_QUERY).matches;
+}
 
 function clampWidth(width: number) {
   return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width));
@@ -17,25 +35,15 @@ type Props = {
 };
 
 export function NodeInspector({ node, onReturnToCanvas }: Props) {
-  const [mobile, setMobile] = useState(() => window.matchMedia("(max-width: 768px)").matches);
-  const [open, setOpen] = useState(() => !window.matchMedia("(max-width: 768px)").matches);
+  const mobile = useSyncExternalStore(subscribeToMobileViewport, isMobileViewport, () => false);
+  const [open, setOpen] = useState(() => !isMobileViewport());
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [resizing, setResizing] = useState(false);
   const resizeStartRef = useRef({ x: 0, width: DEFAULT_WIDTH });
 
   useEffect(() => {
-    const query = window.matchMedia("(max-width: 768px)");
-    const update = () => {
-      setMobile(query.matches);
-      if (query.matches) setOpen(false);
-    };
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-
-  useEffect(() => {
-    if (mobile && !node) setOpen(false);
-  }, [mobile, node]);
+    if (mobile) setOpen(false);
+  }, [mobile]);
 
   useEffect(() => {
     if (!resizing) return;

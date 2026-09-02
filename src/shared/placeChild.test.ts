@@ -27,4 +27,11 @@ describe("placeChildPosition", () => {
 
     expect(placeChildPosition(parent, [sibling])).toEqual({ x: 570, y: 312 });
   });
+
+  it("keeps a new child clear of a note from another branch", () => {
+    const parent = { x: 0, y: 0, title: "職務経歴書", body: "" };
+    const otherBranchChild = { x: LAYOUT_DX, y: 0, title: "js promise", body: "" };
+
+    expect(placeChildPosition(parent, [otherBranchChild]).y).toBeGreaterThan(0);
+  });
 });

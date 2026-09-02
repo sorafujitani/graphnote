@@ -42,6 +42,22 @@ describe("P1 editor workflows", () => {
     await page.viewport(1280, 900);
   });
 
+  it("keeps the detail pane in sync when the viewport becomes mobile", async () => {
+    await page.viewport(1280, 900);
+    await mountEditor(twoNotes());
+
+    expect(screen.getByRole("complementary", { name: "ノードの詳細" })).toBeInTheDocument();
+    await page.viewport(390, 844);
+    await waitFor(() => {
+      expect(screen.queryByRole("complementary", { name: "ノードの詳細" })).not.toBeInTheDocument();
+    });
+
+    await userEvent.click(cardElement("n1"));
+    await userEvent.click(await screen.findByRole("button", { name: "詳細を開く" }));
+    expect(screen.getByRole("complementary", { name: "ノードの詳細" })).toHaveTextContent("Alpha");
+    await page.viewport(1280, 900);
+  });
+
   it("creates the first node from the empty-canvas guide", async () => {
     const api = await mountEditor([]);
 
@@ -666,6 +682,24 @@ const badgeOwners = () =>
   );
 
 describe("the note Tab grows a child from", () => {
+  it("does not overlap a child that belongs to another branch", async () => {
+    const api = await mountEditor(
+      [
+        note("n1", 0, 0, "職務経歴書"),
+        note("n2", 0, -320, "jsconf cfp"),
+        note("n3", 340, 0, "js promise"),
+      ],
+      [link("e1", "n2", "n3")],
+    );
+
+    await userEvent.click(cardElement("n1"));
+    await userEvent.keyboard("{Tab}");
+
+    await waitFor(() => expect(api.createdEdges).toEqual(["n1->n4"]));
+    await waitFor(() => expect(cardElement("n4")).toBeInTheDocument());
+    expect(cardBox("n4").top).toBeGreaterThanOrEqual(cardBox("n3").bottom);
+  });
+
   it("hands the badge back to the selected note when the pointer leaves", async () => {
     // Reported as "Tab grew a child from a note I had left behind".
     const api = await mountEditor(twoNotes());
