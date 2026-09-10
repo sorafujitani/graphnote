@@ -27,8 +27,10 @@ describe("data safety", () => {
     await userEvent.click(cardElement("n2"));
     await userEvent.click(screen.getByRole("button", { name: "選択を削除" }));
 
-    await waitFor(() => expect(api.matching("POST", "/nodes/delete")).toHaveLength(1));
-    expect(document.querySelectorAll(".react-flow__node")).toHaveLength(1);
+    await waitFor(() => {
+      expect(api.matching("POST", "/nodes/delete")).toHaveLength(1);
+      expect(document.querySelectorAll(".react-flow__node")).toHaveLength(1);
+    });
     const toast = await screen.findByText(/1件のノードを削除しました/);
     await userEvent.click(within(toast.parentElement!).getByRole("button", { name: "元に戻す" }));
 
