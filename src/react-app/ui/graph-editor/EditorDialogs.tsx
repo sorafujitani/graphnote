@@ -12,6 +12,7 @@ const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", {
 const LIST_SHORTCUTS = [
   { action: "一覧でノートを選ぶ", keys: ["↑", "↓"] },
   { action: "一覧で選んだノートを開く", keys: ["Enter"] },
+  { action: "操作ヘルプ", keys: ["?"] },
 ];
 
 export function EditorHelpDialog({ onClose }: { onClose: () => void }) {

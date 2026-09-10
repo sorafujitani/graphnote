@@ -226,6 +226,12 @@ export function nodeFlowSize(id: string): { width: number; height: number } {
   return { width: Math.round(box.width / zoom), height: Math.round(box.height / zoom) };
 }
 
+/** The node wrapper's transform is in flow coordinates, before the viewport transform. */
+export function nodeFlowPosition(id: string): Point {
+  const transform = new DOMMatrixReadOnly(getComputedStyle(nodeElement(id)).transform);
+  return { x: transform.e, y: transform.f };
+}
+
 export function cardBox(id: string): DOMRect {
   return cardElement(id).getBoundingClientRect();
 }

@@ -113,6 +113,13 @@ describe("session recovery", () => {
     expect(help).toHaveTextContent("詳細からノート一覧へ戻る");
     await userEvent.click(screen.getByRole("button", { name: "閉じる" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("heading", { name: "あなたのノート" }));
+    await userEvent.keyboard("?");
+    const keyboardHelp = screen.getByRole("dialog", { name: "操作ヘルプ" });
+    expect(keyboardHelp).toHaveTextContent("ノート一覧");
+    expect(keyboardHelp).toHaveTextContent("?");
+    await userEvent.click(screen.getByRole("button", { name: "閉じる" }));
   });
 
   it("キーボードで一覧からノートを開き、詳細から一覧へ戻れる", async () => {
@@ -156,6 +163,10 @@ describe("session recovery", () => {
     render(<App />);
     await screen.findByText("一件目");
     expect(screen.getByText("↑↓で選択 / Enterで開く")).toBeInTheDocument();
+
+    await userEvent.keyboard("{Shift>}n{/Shift}");
+    expect(screen.getByPlaceholderText("例：次のリリース計画")).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
 
     await userEvent.keyboard("{ArrowDown}");
     expect(screen.getByText("二件目").closest("article")).toHaveClass("ring-accent");

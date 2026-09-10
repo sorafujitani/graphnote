@@ -12,6 +12,7 @@ import {
   fieldEditor,
   link,
   mountEditor,
+  nodeFlowPosition,
   nodeFlowSize,
   note,
   portBox,
@@ -275,19 +276,40 @@ describe("P1 editor workflows", () => {
 
   it("persists undo and redo for a completed drag", async () => {
     const api = await mountEditor(twoNotes());
-    const before = cardBox("n1");
-    const from = { x: before.x + 80, y: before.y + 40 };
+    const before = nodeFlowPosition("n1");
+    const card = cardBox("n1");
+    const from = { x: card.x + 80, y: card.y + 40 };
     await dragMouse(from, { x: from.x + 70, y: from.y + 70 });
     await waitFor(() => expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(1));
-    expect(cardBox("n1").x).toBeGreaterThan(before.x + 40);
+
+    const moved = nodeFlowPosition("n1");
+    expect(moved.x).toBeGreaterThan(before.x + 40);
+    expect(moved.y).toBeGreaterThan(before.y + 40);
+    const movedPatch = api.matching("PATCH", "/nodes/n1")[0]?.body;
+    // CSS serializes transform coordinates with less precision than the API payload.
+    expect(movedPatch).toMatchObject({
+      x: expect.closeTo(moved.x, 3),
+      y: expect.closeTo(moved.y, 3),
+    });
 
     const undo = screen.getByRole("button", { name: "元に戻す" });
     await waitFor(() => expect(undo).toBeEnabled());
     await userEvent.click(undo);
-    await waitFor(() => expect(cardBox("n1").x).toBeCloseTo(before.x, 0));
+    await waitFor(() => {
+      expect(nodeFlowPosition("n1")).toEqual(before);
+      expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(2);
+    });
+    expect(api.matching("PATCH", "/nodes/n1")[1]?.body).toMatchObject(before);
+
     await userEvent.click(screen.getByRole("button", { name: "やり直す" }));
-    await waitFor(() => expect(cardBox("n1").x).toBeGreaterThan(before.x + 40));
-    expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(3);
+    await waitFor(() => {
+      expect(nodeFlowPosition("n1")).toEqual(moved);
+      expect(api.matching("PATCH", "/nodes/n1")).toHaveLength(3);
+    });
+    expect(api.matching("PATCH", "/nodes/n1")[2]?.body).toMatchObject({
+      x: movedPatch?.x,
+      y: movedPatch?.y,
+    });
   });
 
   it("treats auto-arrange as one undoable operation", async () => {

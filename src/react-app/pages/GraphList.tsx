@@ -12,6 +12,9 @@ type Props = {
 };
 
 export function GraphList(props: Props) {
-  const controller = useGraphList({ onOpen: props.onOpen });
+  const controller = useGraphList({
+    onOpen: props.onOpen,
+    onOpenHelp: props.onOpenHelp,
+  });
   return <GraphListView controller={controller} {...props} />;
 }

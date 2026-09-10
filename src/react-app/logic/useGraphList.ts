@@ -16,6 +16,7 @@ import { useConfirm } from "./useConfirm";
 
 export type UseGraphListOptions = {
   onOpen: (graphId: string, nodeId?: string) => void;
+  onOpenHelp: () => void;
 };
 
 export type GraphSort = "updated" | "created" | "title" | "size";
@@ -46,7 +47,7 @@ function sortGraphs(graphs: GraphSummary[], sort: GraphSort): GraphSummary[] {
 
 export type ListNotice = { message: string; action?: { label: string; run: () => void } };
 
-export function useGraphList({ onOpen }: UseGraphListOptions) {
+export function useGraphList({ onOpen, onOpenHelp }: UseGraphListOptions) {
   const [graphs, setGraphs] = useState<GraphSummary[]>([]);
   const [trash, setTrash] = useState<GraphSummary[] | null>(null);
   const [title, setTitle] = useState("");
@@ -304,14 +305,28 @@ export function useGraphList({ onOpen }: UseGraphListOptions) {
       }
       return;
     }
-    // Enter on a focused button (menu, delete, a note row) must press that
-    // button, not act on whichever row happens to be highlighted.
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && isInteractiveTarget(event.target)) {
-      return;
+    // Buttons and menus own their activation keys. Other shortcuts remain
+    // global, including when the keyboard cursor is on a note row.
+    const target = event.target;
+    if (isInteractiveTarget(target)) {
+      if (event.key === "Tab" || event.key === "Enter" || event.key === " ") return;
+      if (
+        event.key.startsWith("Arrow") &&
+        target instanceof Element &&
+        target.closest("[role='separator'], [role='menu'], [role='menuitem'], select")
+      ) {
+        return;
+      }
     }
     // An IME composing "n" must not steal focus mid-word.
     if (event.isComposing) return;
-    if (event.key === "n" && !event.metaKey && !event.ctrlKey) {
+    const key = event.key.toLowerCase();
+    if (event.key === "?" && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      onOpenHelp();
+      return;
+    }
+    if (key === "n" && !event.metaKey && !event.ctrlKey) {
       event.preventDefault();
       document.querySelector<HTMLInputElement>("[data-new-note-input]")?.focus();
       return;
