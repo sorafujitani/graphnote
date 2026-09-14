@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { EdgeRecord, NodeRecord } from "../../../shared/types";
 import { DialogFrame } from "../../components/Dialog";
+import { Button } from "../../components/ui/button";
 import { EDITOR_SHORTCUT_GROUPS, shortcutKey } from "../../logic/editorShortcuts";
 import type { ExportEntry } from "../../server/api";
 
@@ -190,16 +191,14 @@ export function EdgeLabelDialog({
         />
         <div className="flex justify-end gap-2">
           {edge.label ? (
-            <button className="btn btn-secondary mr-auto" type="button" onClick={() => onSave("")}>
+            <Button variant="outline" className="mr-auto" type="button" onClick={() => onSave("")}>
               ラベルを消す
-            </button>
+            </Button>
           ) : null}
-          <button className="btn btn-secondary" type="button" onClick={onClose}>
+          <Button variant="outline" type="button" onClick={onClose}>
             キャンセル
-          </button>
-          <button className="btn btn-accent" type="submit">
-            保存
-          </button>
+          </Button>
+          <Button type="submit">保存</Button>
         </div>
       </form>
     </DialogFrame>
@@ -252,14 +251,14 @@ export function RestoreDialog({
                     {formatBytes(entry.size)}
                   </div>
                 </div>
-                <button
-                  className="btn btn-secondary shrink-0"
+                <Button
+                  variant="outline"
                   type="button"
                   disabled={busy}
                   onClick={() => onRestore(entry.name)}
                 >
                   この時点に戻す
-                </button>
+                </Button>
               </li>
             ))}
           </ul>

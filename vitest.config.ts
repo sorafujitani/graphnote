@@ -1,11 +1,26 @@
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 import { playwright } from "vite-plus/test/browser-playwright";
 
 export default defineConfig({
+  resolve: { tsconfigPaths: true },
   test: {
     projects: [
+      {
+        plugins: [tailwindcss(), storybookTest({ configDir: ".storybook" })],
+        test: {
+          name: "storybook",
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: "chromium" }],
+            viewport: { width: 1280, height: 900 },
+          },
+        },
+      },
       {
         // Pure logic: layout math, worker rules, keyboard helpers.
         test: {
@@ -19,6 +34,7 @@ export default defineConfig({
       {
         // Canvas behaviour: real layout, real hit testing, real pointer events.
         // happy-dom reports zero-sized boxes, so these belong in a browser.
+        resolve: { tsconfigPaths: true },
         plugins: [tailwindcss(), react()],
         test: {
           name: "browser",

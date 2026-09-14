@@ -1,5 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "@xyflow/react/dist/style.css";
 
 @theme {
@@ -21,6 +22,25 @@
   --color-edge-hot: #60a5fa;
 
   --shadow-panel: 0 12px 40px rgb(0 0 0 / 35%);
+}
+
+/* shadcn/ui shares the existing palette. `accent` and `muted` already mean
+   foreground colors here; UI component highlights use `accent-soft` instead. */
+@theme inline {
+  --color-background: var(--color-surface);
+  --color-foreground: var(--color-ink);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-ink);
+  --color-primary: var(--color-accent);
+  --color-primary-foreground: var(--color-canvas);
+  --color-secondary: var(--color-surface-soft);
+  --color-secondary-foreground: var(--color-ink);
+  --color-muted-foreground: var(--color-muted);
+  --color-accent-foreground: var(--color-ink);
+  --color-destructive: var(--color-danger);
+  --color-border: var(--color-line);
+  --color-input: var(--color-line);
+  --color-ring: var(--color-accent);
 }
 
 :root {

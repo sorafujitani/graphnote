@@ -105,7 +105,7 @@ describe("session recovery", () => {
     await userEvent.click(screen.getByRole("button", { name: "メニュー" }));
     expect(screen.getByText("Sora")).toBeInTheDocument();
     expect(screen.getByText("sora@example.com")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "使い方" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "使い方" }));
     const help = screen.getByRole("dialog");
     expect(help).toHaveTextContent("操作ヘルプ");
     expect(help).toHaveTextContent("一覧でノートを選ぶ");

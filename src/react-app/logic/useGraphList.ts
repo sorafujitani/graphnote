@@ -9,7 +9,7 @@ import {
 } from "react";
 import { QUOTA } from "../../shared/quota";
 import type { GraphExport, GraphSummary, SearchHit } from "../../shared/types";
-import { isEditableTarget, isInteractiveTarget } from "../lib/keyboard";
+import { isEditableTarget, isInteractiveTarget, isOverlayTarget } from "../lib/keyboard";
 import { userMessage } from "../lib/userMessage";
 import { api } from "../server/api";
 import { useConfirm } from "./useConfirm";
@@ -298,7 +298,7 @@ export function useGraphList({ onOpen, onOpenHelp }: UseGraphListOptions) {
   }
 
   const onListKeyDown = useEffectEvent((event: globalThis.KeyboardEvent) => {
-    if (confirmDialog) return;
+    if (event.defaultPrevented || confirmDialog || isOverlayTarget(event.target)) return;
     if (isEditableTarget(event.target)) {
       if (event.key === "Escape") {
         (document.activeElement as HTMLElement | null)?.blur();

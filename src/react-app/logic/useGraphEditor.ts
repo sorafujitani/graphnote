@@ -25,7 +25,12 @@ import { placeChildPosition } from "../../shared/placeChild";
 import { clampNoteHeight, clampNoteWidth } from "../../shared/noteSize";
 import { reflowAroundNode } from "../../shared/reflowTree";
 import { toggleTask } from "../../shared/taskList";
-import { isEditableTarget, isInteractiveTarget, nearestNodeId } from "../lib/keyboard";
+import {
+  isEditableTarget,
+  isInteractiveTarget,
+  isOverlayTarget,
+  nearestNodeId,
+} from "../lib/keyboard";
 import { userMessage } from "../lib/userMessage";
 import { ApiError, ConflictError, api, type ExportEntry } from "../server/api";
 import {
@@ -1279,7 +1284,7 @@ export function useGraphEditor({ graphId, focusNodeId, onBack }: UseGraphEditorO
   );
 
   const onCanvasKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.defaultPrevented) return;
+    if (event.defaultPrevented || isOverlayTarget(event.target)) return;
     const editable = isEditableTarget(event.target);
     const mod = event.metaKey || event.ctrlKey;
     const key = event.key.toLowerCase();

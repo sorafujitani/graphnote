@@ -18,6 +18,11 @@ export function isInteractiveTarget(target: EventTarget | null): boolean {
   );
 }
 
+/** Portalled menus and dialogs own all keys, including Escape and typeahead. */
+export function isOverlayTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('[role="menu"], [role="dialog"]') !== null;
+}
+
 export function nearestNodeId(
   nodes: { id: string; x: number; y: number }[],
   fromId: string,

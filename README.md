@@ -2,7 +2,7 @@
 
 Personal **graph notes** — connect ideas on a canvas instead of writing long documents.
 
-**Live:** https://graphnote.app
+**Live:** <https://graphnote.app>
 
 - **UI:** React Flow canvas · Markdown bodies · keyboard-first editing · **Arrange** for auto-layout
 - **API:** Hono on Cloudflare Workers
@@ -53,6 +53,39 @@ curl -fsSL https://vite.plus | bash   # optional; VP_NODE_MANAGER=no keeps node/
 vp dev                                # same server as pnpm dev, minus the D1 migration step
 vp check                              # fmt + lint + type-aware check in one pass
 ```
+
+### Storybook (UI sandbox)
+
+Run components without Google login, Cloudflare bindings, or a database:
+
+```bash
+vp run storybook              # http://127.0.0.1:6006
+vp run build:storybook        # static output: storybook-static/
+vp run test:storybook         # render every story + run play assertions in Chromium
+```
+
+- **Canvas / Note:** drag, select, double-click to edit, resize, connect notes,
+  toggle Markdown tasks, and press Tab while editing to add a child.
+  Controls change the starting title/body and reset the canvas.
+- **Pages / Login:** normal, loading, and error states.
+- **Pages / GraphList:** populated/empty lists, loading/errors, quota, search results,
+  renaming, busy state, trash, and deletion confirmation.
+- **Pages / Tokens:** read/write access, empty list, newly issued sample key,
+  busy/error states, and revocation confirmation.
+- **Pages / GraphEditorView:** populated/empty canvas, load/save states, missing graph,
+  selection, collapsed branch, notices, search, edge labels, backups, and help.
+  Page stories show fixed state and log callbacks; they do not perform API operations.
+- **Components / ConfirmDialog:** confirm/cancel, Escape, focus, and reopening.
+
+Changes stay in memory and reset on reload. This sandbox uses the real components,
+not the full GraphEditor controller: global shortcuts, undo/redo, branch folding,
+authentication, and API persistence still need the app and its browser tests.
+Stories with a `play` function run interaction assertions when opened. The `storybook`
+Vitest project runs every story in Chromium and is included in `vp test run` and
+`vp run check`. Run `vp run test:setup` once if Chromium is not installed.
+
+Story files live next to their components as `*.stories.tsx`. Storybook has its own
+Vite config in `.storybook/` so it does not start the Cloudflare plugin.
 
 ### Google OAuth (Web client)
 
@@ -112,7 +145,7 @@ writes a launcher to `~/.local/bin/gqn` (`GQN_PREFIX` overrides the prefix,
 
 Then:
 
-1. Sign in at https://graphnote.app
+1. Sign in at <https://graphnote.app>
 2. **Integrations** → create access key → copy once (the page shows the exact commands)
 3. Run `gqn config set-token` and paste the token into the hidden prompt. The saved key is bound
    to the current host. For CI, pair `GRAPHNOTE_TOKEN` with `GRAPHNOTE_TOKEN_URL`.

@@ -11,6 +11,11 @@ import { QUOTA } from "../../../shared/quota";
 import type { PublicUser } from "../../../shared/types";
 import { ConfirmDialog } from "../../components/Dialog";
 import { AppMenu } from "../../components/AppMenu";
+import {
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "../../components/ui/dropdown-menu";
 import { Note } from "../../components/Note";
 import { NoteActionsProvider } from "../../components/NoteActions";
 import { EDGE_MARKER } from "../../logic/graphEditorFlow";
@@ -193,191 +198,100 @@ export function GraphEditorView({ controller, user, onBack, onLogout, onOpenToke
         </div>
 
         <AppMenu user={user}>
-          {(close) => (
-            <>
-              <p className="m-0 px-3 pt-1 pb-2 text-xs text-muted">
-                ノード {state.nodeCount} / {QUOTA.maxNodesPerGraph}
-                {state.hiddenCount > 0 ? `（${state.hiddenCount}件を折りたたみ中）` : ""}
-              </p>
-              <button
-                className="btn btn-ghost flex w-full justify-start"
-                type="button"
-                onClick={() => {
-                  close();
-                  actions.openSearch();
-                }}
-              >
-                ノードを検索
-              </button>
-              <button
-                className="btn btn-ghost flex w-full justify-start"
-                type="button"
-                onClick={() => {
-                  close();
-                  actions.openHelp();
-                }}
-              >
-                操作ヘルプ
-              </button>
-              <div className="mx-2 border-t border-line lg:hidden" />
-              <button
-                className="btn btn-ghost flex w-full justify-start lg:hidden"
-                type="button"
-                disabled={state.busy || !state.activeParentId}
-                onClick={() => {
-                  close();
-                  void actions.addChildFromActiveParent();
-                }}
-              >
-                子ノードを追加
-              </button>
-              <button
-                className="btn btn-ghost flex w-full justify-start lg:hidden"
-                type="button"
-                disabled={
-                  state.busy || (state.selectedNodeCount === 0 && state.selectedEdgeCount === 0)
-                }
-                onClick={() => {
-                  close();
-                  void actions.onDeleteSelection(false);
-                }}
-              >
-                {state.selectedEdgeCount > 0 ? "つながりを削除" : "選択を削除"}
-              </button>
-              <button
-                className="btn btn-ghost flex w-full justify-start lg:hidden"
-                type="button"
-                disabled={state.busy || state.nodeCount === 0}
-                onClick={() => {
-                  close();
-                  void actions.onFmt();
-                }}
-              >
-                自動整列
-              </button>
-              <button
-                className="btn btn-ghost flex w-full justify-start lg:hidden"
-                type="button"
-                disabled={state.busy || !state.canUndo}
-                onClick={() => {
-                  close();
-                  void actions.undo();
-                }}
-              >
-                元に戻す
-              </button>
-              <button
-                className="btn btn-ghost flex w-full justify-start lg:hidden"
-                type="button"
-                disabled={state.busy || !state.canRedo}
-                onClick={() => {
-                  close();
-                  void actions.redo();
-                }}
-              >
-                やり直す
-              </button>
-              <button
-                className="btn btn-ghost flex w-full justify-start text-danger lg:hidden"
-                type="button"
-                disabled={state.busy || state.selectedNodeCount === 0}
-                onClick={() => {
-                  close();
-                  void actions.onDeleteSelection(true);
-                }}
-              >
-                下位ごと削除
-              </button>
-              <div className="mx-2 border-t border-line" />
-              <button
-                className="btn btn-ghost flex w-full justify-start"
-                type="button"
-                disabled={state.busy || state.selectedNodeCount === 0}
-                onClick={() => {
-                  close();
-                  void actions.duplicateSelection();
-                }}
-              >
-                選択を複製
-              </button>
-              <button
-                className="btn btn-ghost flex w-full justify-start"
-                type="button"
-                disabled={state.busy || !state.activeParentId}
-                onClick={() => {
-                  close();
-                  actions.toggleCollapse();
-                }}
-              >
-                {state.hiddenCount > 0 ? "下位ノードを折りたたむ / 開く" : "下位ノードを折りたたむ"}
-              </button>
-              {state.selectedEdgeId ? (
-                <button
-                  className="btn btn-ghost flex w-full justify-start"
-                  type="button"
-                  onClick={() => {
-                    close();
-                    actions.openEdgeLabel(state.selectedEdgeId as string);
-                  }}
-                >
-                  つながりのラベルを編集
-                </button>
-              ) : null}
-              <div className="mx-2 border-t border-line" />
-              <button
-                className="btn btn-ghost flex w-full justify-start"
-                type="button"
-                disabled={state.busy}
-                onClick={() => {
-                  close();
-                  void actions.onExport();
-                }}
-              >
-                ダウンロード
-              </button>
-              <button
-                className="btn btn-ghost flex w-full justify-start"
-                type="button"
-                disabled={state.busy}
-                onClick={() => {
-                  close();
-                  void actions.openRestore();
-                }}
-              >
-                バックアップから復元
-              </button>
-              <div className="mx-2 border-t border-line" />
-              <button
-                className="btn btn-ghost flex w-full justify-start"
-                type="button"
-                onClick={() => {
-                  close();
-                  onOpenTokens();
-                }}
-              >
-                CLI連携
-              </button>
-              <a
-                className="btn btn-ghost flex w-full justify-start"
-                href="https://github.com/sorafujitani/graphnote/issues"
-                target="_blank"
-                rel="noreferrer"
-                onClick={close}
-              >
-                フィードバック
-              </a>
-              <button
-                className="btn btn-ghost flex w-full justify-start text-danger"
-                type="button"
-                onClick={() => {
-                  close();
-                  onLogout();
-                }}
-              >
-                ログアウト
-              </button>
-            </>
-          )}
+          <DropdownMenuLabel>
+            ノード {state.nodeCount} / {QUOTA.maxNodesPerGraph}
+            {state.hiddenCount > 0 ? `（${state.hiddenCount}件を折りたたみ中）` : ""}
+          </DropdownMenuLabel>
+          <DropdownMenuItem onSelect={actions.openSearch}>ノードを検索</DropdownMenuItem>
+          <DropdownMenuItem onSelect={actions.openHelp}>操作ヘルプ</DropdownMenuItem>
+          <DropdownMenuSeparator className="lg:hidden" />
+          <DropdownMenuItem
+            className="lg:hidden"
+            disabled={state.busy || !state.activeParentId}
+            onSelect={() => void actions.addChildFromActiveParent()}
+          >
+            子ノードを追加
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="lg:hidden"
+            variant="destructive"
+            disabled={
+              state.busy || (state.selectedNodeCount === 0 && state.selectedEdgeCount === 0)
+            }
+            onSelect={() => void actions.onDeleteSelection(false)}
+          >
+            {state.selectedEdgeCount > 0 ? "つながりを削除" : "選択を削除"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="lg:hidden"
+            disabled={state.busy || state.nodeCount === 0}
+            onSelect={() => void actions.onFmt()}
+          >
+            自動整列
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="lg:hidden"
+            disabled={state.busy || !state.canUndo}
+            onSelect={() => void actions.undo()}
+          >
+            元に戻す
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="lg:hidden"
+            disabled={state.busy || !state.canRedo}
+            onSelect={() => void actions.redo()}
+          >
+            やり直す
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="lg:hidden"
+            variant="destructive"
+            disabled={state.busy || state.selectedNodeCount === 0}
+            onSelect={() => void actions.onDeleteSelection(true)}
+          >
+            下位ごと削除
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            disabled={state.busy || state.selectedNodeCount === 0}
+            onSelect={() => void actions.duplicateSelection()}
+          >
+            選択を複製
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={state.busy || !state.activeParentId}
+            onSelect={() => actions.toggleCollapse()}
+          >
+            {state.hiddenCount > 0 ? "下位ノードを折りたたむ / 開く" : "下位ノードを折りたたむ"}
+          </DropdownMenuItem>
+          {state.selectedEdgeId ? (
+            <DropdownMenuItem
+              onSelect={() => actions.openEdgeLabel(state.selectedEdgeId as string)}
+            >
+              つながりのラベルを編集
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled={state.busy} onSelect={() => void actions.onExport()}>
+            ダウンロード
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={state.busy} onSelect={() => void actions.openRestore()}>
+            バックアップから復元
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onOpenTokens}>CLI連携</DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a
+              href="https://github.com/sorafujitani/graphnote/issues"
+              target="_blank"
+              rel="noreferrer"
+            >
+              フィードバック
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem variant="destructive" onSelect={onLogout}>
+            ログアウト
+          </DropdownMenuItem>
         </AppMenu>
       </header>
 

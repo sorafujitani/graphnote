@@ -8,6 +8,7 @@ export default defineConfig({
   fmt: {
     ignorePatterns: [
       "dist/**",
+      "storybook-static/**",
       "node_modules/**",
       ".wrangler/**",
       "worker-configuration.d.ts",
@@ -20,7 +21,13 @@ export default defineConfig({
       correctness: "error",
       suspicious: "warn",
     },
-    ignorePatterns: ["dist/**", "node_modules/**", ".wrangler/**", "worker-configuration.d.ts"],
+    ignorePatterns: [
+      "dist/**",
+      "storybook-static/**",
+      "node_modules/**",
+      ".wrangler/**",
+      "worker-configuration.d.ts",
+    ],
     rules: {
       "react/react-in-jsx-scope": "off",
       "react/rules-of-hooks": "error",

@@ -328,7 +328,7 @@ describe("P1 editor workflows", () => {
 
 describe("customer-facing editor copy", () => {
   it("keeps secondary actions in the menu and removes shortcut copy", async () => {
-    await mountEditor(twoNotes(), [link("e1", "n1", "n2")]);
+    const api = await mountEditor(twoNotes(), [link("e1", "n1", "n2")]);
 
     expect(document.body).toHaveTextContent("ノート一覧");
     expect(document.body).not.toHaveTextContent("ボード");
@@ -340,18 +340,25 @@ describe("customer-facing editor copy", () => {
     expect(document.body).not.toHaveTextContent("下位を選択");
     expect(screen.getByRole("textbox", { name: "ノート名" })).toBeInTheDocument();
     expect(screen.getByRole("application", { name: "ノート編集キャンバス" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "ダウンロード" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "ログアウト" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "ダウンロード" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "ログアウト" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "メニュー" }));
 
-    expect(screen.getByRole("button", { name: "ダウンロード" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "ダウンロード" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "ログアウト" })).toBeInTheDocument();
 
+    await userEvent.keyboard("n");
+    expect(api.matching("POST", "/nodes")).toEqual([]);
     await userEvent.keyboard("{Escape}");
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "ダウンロード" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "ダウンロード" })).not.toBeInTheDocument();
     });
+    await userEvent.click(screen.getByRole("button", { name: "メニュー" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "ノードを検索" }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "検索語" })).toHaveFocus());
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.getByRole("button", { name: "メニュー" })).toHaveFocus());
   });
 
   it("uses friendly placeholders instead of implementation terms", async () => {

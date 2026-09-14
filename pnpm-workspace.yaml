@@ -2,6 +2,9 @@ minimumReleaseAge: 0
 trustPolicy: no-downgrade
 trustPolicyExclude:
   - chokidar@4.0.3
+  # The 6.x backport lacks provenance.
+  # All six files match the official v6.3.1 release.
+  - semver@6.3.1
 allowBuilds:
   esbuild: true
   lefthook: true

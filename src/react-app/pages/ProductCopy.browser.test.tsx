@@ -55,17 +55,17 @@ describe("customer-facing product copy", () => {
     expect(document.body).toHaveTextContent("新しいノート");
     expect(document.body).not.toHaveTextContent("ボード");
     expect(document.body).toHaveTextContent("ノードをまとめられます");
-    expect(screen.queryByRole("button", { name: "CLI連携" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "ログアウト" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "アカウントを削除" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "CLI連携" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "ログアウト" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "アカウントを削除" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "メニュー" }));
 
-    expect(screen.getByRole("button", { name: "CLI連携" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "アカウントを削除" }));
+    expect(screen.getByRole("menuitem", { name: "CLI連携" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "ログアウト" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("menuitem", { name: "アカウントを削除" }));
 
     expect(deleteRequested).toBe(true);
-    expect(screen.queryByRole("button", { name: "アカウントを削除" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "アカウントを削除" })).not.toBeInTheDocument();
   });
 });

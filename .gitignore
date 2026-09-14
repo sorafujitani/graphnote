@@ -4,6 +4,7 @@ npm-debug.log*
 node_modules
 dist
 dist-ssr
+storybook-static
 *.local
 .wrangler
 .dev.vars

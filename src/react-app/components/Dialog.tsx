@@ -1,4 +1,7 @@
-import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
+import { X } from "lucide-react";
+import { Button } from "./ui/button";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog";
 
 type DialogFrameProps = {
   title: string;
@@ -16,64 +19,48 @@ export function DialogFrame({
   initialFocusRef,
 }: DialogFrameProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    (initialFocusRef?.current ?? closeRef.current)?.focus();
-  }, [initialFocusRef]);
+  const [returnFocus] = useState(() => {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) return null;
+    // Menu items unmount when selected; return to their trigger instead.
+    const triggerId = active.closest('[role="menu"]')?.getAttribute("aria-labelledby");
+    return (triggerId ? document.getElementById(triggerId) : null) ?? active;
+  });
+
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/65 p-4"
-      onMouseDown={onClose}
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="app-dialog-title"
-        className="panel max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-2xl overflow-hidden"
-        onMouseDown={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.stopPropagation();
-            onClose();
-            return;
-          }
-          if (event.key !== "Tab") return;
-          const focusable = [
-            ...event.currentTarget.querySelectorAll<HTMLElement>(
-              'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-            ),
-          ];
-          if (focusable.length === 0) return;
-          const first = focusable[0] as HTMLElement;
-          const last = focusable.at(-1) as HTMLElement;
-          if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
-          }
+      <DialogContent
+        {...(!description ? { "aria-describedby": undefined } : {})}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          (initialFocusRef?.current ?? closeRef.current)?.focus();
         }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+        }}
+        onEscapeKeyDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
       >
         <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
-          <div>
-            <h2 id="app-dialog-title" className="m-0 font-brand text-xl font-bold">
-              {title}
-            </h2>
-            {description ? <p className="mt-1 mb-0 text-sm text-muted">{description}</p> : null}
+          <div className="grid min-w-0 gap-2">
+            <DialogTitle>{title}</DialogTitle>
+            {description ? <DialogDescription>{description}</DialogDescription> : null}
           </div>
-          <button
-            ref={closeRef}
-            className="btn btn-ghost grid size-9 place-items-center p-0 text-xl"
-            type="button"
-            aria-label="閉じる"
-            onClick={onClose}
-          >
-            ×
-          </button>
+          <DialogClose asChild>
+            <Button ref={closeRef} variant="ghost" size="icon" type="button" aria-label="閉じる">
+              <X aria-hidden="true" />
+            </Button>
+          </DialogClose>
         </header>
         {children}
-      </section>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -91,24 +78,27 @@ export function ConfirmDialog({
   danger = false,
   onResolve,
 }: ConfirmRequest & { onResolve: (ok: boolean) => void }) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   return (
-    <DialogFrame title={title} onClose={() => onResolve(false)} initialFocusRef={confirmRef}>
-      <div className="grid gap-5 p-5">
-        <p className="m-0 text-sm leading-relaxed text-body">{message}</p>
-        <div className="flex justify-end gap-2">
-          <button className="btn btn-secondary" type="button" onClick={() => onResolve(false)}>
-            キャンセル
-          </button>
-          <button
-            ref={confirmRef}
-            className={`btn ${danger ? "btn-danger" : "btn-accent"}`}
-            type="button"
-            onClick={() => onResolve(true)}
-          >
-            {confirmLabel}
-          </button>
-        </div>
+    <DialogFrame
+      title={title}
+      description={message}
+      onClose={() => onResolve(false)}
+      initialFocusRef={danger ? cancelRef : confirmRef}
+    >
+      <div className="flex flex-col-reverse gap-2 p-5 sm:flex-row sm:justify-end">
+        <Button ref={cancelRef} variant="outline" type="button" onClick={() => onResolve(false)}>
+          キャンセル
+        </Button>
+        <Button
+          ref={confirmRef}
+          variant={danger ? "destructive" : "default"}
+          type="button"
+          onClick={() => onResolve(true)}
+        >
+          {confirmLabel}
+        </Button>
       </div>
     </DialogFrame>
   );
@@ -127,14 +117,11 @@ export function AlertDialog({
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   return (
-    <DialogFrame title={title} onClose={onClose} initialFocusRef={closeRef}>
-      <div className="grid gap-5 p-5">
-        <p className="m-0 text-sm leading-relaxed text-body">{message}</p>
-        <div className="flex justify-end">
-          <button ref={closeRef} className="btn btn-accent" type="button" onClick={onClose}>
-            {closeLabel}
-          </button>
-        </div>
+    <DialogFrame title={title} description={message} onClose={onClose} initialFocusRef={closeRef}>
+      <div className="flex justify-end p-5">
+        <Button ref={closeRef} type="button" onClick={onClose}>
+          {closeLabel}
+        </Button>
       </div>
     </DialogFrame>
   );

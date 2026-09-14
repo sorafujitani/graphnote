@@ -3,6 +3,11 @@ import { QUOTA } from "../../shared/quota";
 import type { PublicUser } from "../../shared/types";
 import { AppMenu } from "../components/AppMenu";
 import { ConfirmDialog } from "../components/Dialog";
+import {
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "../components/ui/dropdown-menu";
 import type { GraphListController, GraphSort } from "../logic/useGraphList";
 
 const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", {
@@ -68,63 +73,25 @@ export function GraphListView({
           </p>
         </div>
         <AppMenu user={user}>
-          {(close) => (
-            <>
-              <p className="m-0 px-3 pt-1 pb-2 text-xs text-muted">
-                ノート {state.totalGraphs} / {QUOTA.maxGraphsPerUser}
-              </p>
-              <button
-                className="btn btn-ghost flex w-full justify-start"
-                type="button"
-                onClick={() => {
-                  close();
-                  onOpenHelp();
-                }}
-              >
-                使い方
-              </button>
-              <button
-                className="btn btn-ghost flex w-full justify-start"
-                type="button"
-                onClick={() => {
-                  close();
-                  onOpenTokens();
-                }}
-              >
-                CLI連携
-              </button>
-              <a
-                className="btn btn-ghost flex w-full justify-start"
-                href="https://github.com/sorafujitani/graphnote/issues"
-                target="_blank"
-                rel="noreferrer"
-                onClick={close}
-              >
-                フィードバック
-              </a>
-              <button
-                className="btn btn-ghost flex w-full justify-start"
-                type="button"
-                onClick={() => {
-                  close();
-                  onLogout();
-                }}
-              >
-                ログアウト
-              </button>
-              <div className="mx-2 border-t border-line" />
-              <button
-                className="btn btn-ghost flex w-full justify-start text-danger"
-                type="button"
-                onClick={() => {
-                  close();
-                  onDeleteAccount();
-                }}
-              >
-                アカウントを削除
-              </button>
-            </>
-          )}
+          <DropdownMenuLabel>
+            ノート {state.totalGraphs} / {QUOTA.maxGraphsPerUser}
+          </DropdownMenuLabel>
+          <DropdownMenuItem onSelect={onOpenHelp}>使い方</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onOpenTokens}>CLI連携</DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a
+              href="https://github.com/sorafujitani/graphnote/issues"
+              target="_blank"
+              rel="noreferrer"
+            >
+              フィードバック
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onLogout}>ログアウト</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={onDeleteAccount}>
+            アカウントを削除
+          </DropdownMenuItem>
         </AppMenu>
       </header>
 
